@@ -51,9 +51,11 @@ the product direction static-only again.
 - **Fit** keeps the foreground photo sharp and shows an adjustable blurred
   background. Motion affects the blurred background while the foreground stays
   sharp and stationary.
-- Current motion presets are Still, Breathe, Drift, and Pulse.
-- Dynamic presets have adjustable intensity and speed. Slow, Normal, and Fast
-  use seamless 8, 6, and 4 second loops.
+- Current motion presets are Still, Zoom In, Zoom Out, Breathe, Drift, Pulse,
+  and Sway.
+- Dynamic presets have adjustable intensity. Breathe, Drift, Pulse, and Sway
+  use reusable 8, 6, or 4 second effect passes. Zoom In and Zoom Out render one
+  camera move across the full selected audio range.
 - The Konva preview is live. Safe-zone guides are editor-only and must never
   appear in the output.
 - The audio editor supports exact flexible timestamps such as `0:33`, `67`, and
@@ -65,23 +67,20 @@ the product direction static-only again.
   export the visual layer or layers.
 - `heic-to` / libheif provides the local HEIC fallback when the browser cannot
   decode HEIC natively.
-- `mediabunny` and its `CanvasSource` are the primary visual-loop encoder. They
+- `mediabunny` and its `CanvasSource` are the primary visual encoder. They
   feed exact timestamped canvas frames into the browser's native WebCodecs H.264
   encoder and write the result as MP4.
 - `@ffmpeg/ffmpeg` with self-hosted `@ffmpeg/core` and `@ffmpeg/core-mt` assets
-  trims audio, repeats the compressed loop, and muxes the final MP4. FFmpeg also
-  remains the visual-loop fallback when native H.264 is unavailable.
+  trims audio, repeats reusable compressed effects, and muxes the final MP4.
+  FFmpeg also remains the visual fallback when native H.264 is unavailable.
 - `next.config.ts` sends COOP and COEP headers so supported browsers can use
   `SharedArrayBuffer` and the multithreaded FFmpeg core. Sonora falls back to the
   single-thread core when isolation or threads are unavailable.
 
-The exporter does not encode the same motion for the full audio duration. It
-encodes one seamless visual loop at 60 FPS with browser-native H.264 when
-available, then repeats the compressed stream with FFmpeg stream copy while it
-trims and muxes the selected audio. A Still export encodes one reusable second.
-Dynamic exports encode one 4, 6, or 8 second loop. Preserve this architecture
-when adding effects: make effects seamless and keep their cost bounded by the
-loop length when possible.
+The exporter encodes Still as one reusable second. Breathe, Drift, Pulse, and
+Sway encode one 4, 6, or 8 second effect pass, then FFmpeg repeats the compressed
+stream while it trims and muxes audio. Zoom In and Zoom Out instead encode a
+single continuous move across the full selected audio duration.
 
 The native visual encoder requests H.264 High Profile Level 4.2, quantizer 14,
 and a 20 Mbps fallback bitrate. The FFmpeg visual fallback uses CRF 14, yuv420p,

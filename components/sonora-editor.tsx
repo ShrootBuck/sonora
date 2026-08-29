@@ -12,6 +12,9 @@ import {
   ShieldCheckIcon,
   SparklesIcon,
   WandSparklesIcon,
+  WavesIcon,
+  ZoomInIcon,
+  ZoomOutIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -51,6 +54,7 @@ import {
   type CompositionSettings,
   clampPan,
   DEFAULT_COMPOSITION,
+  FULL_DURATION_PRESETS,
   type MotionPreset,
   type MotionSpeed,
   resetForMode,
@@ -74,7 +78,7 @@ function outputFilename() {
 
 export function SonoraEditor() {
   const canvasRef = useRef<StoryCanvasHandle>(null);
-  const cancelledRef = useRef(false);
+  const exportEpochRef = useRef(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -207,7 +211,8 @@ export function SonoraEditor() {
   const runExport = async () => {
     if (!image || !audioFile || !canvasRef.current) return;
 
-    cancelledRef.current = false;
+    const exportEpoch = exportEpochRef.current + 1;
+    exportEpochRef.current = exportEpoch;
     setExportState("working");
     setExportError(null);
     setExportProgress(0);
@@ -215,15 +220,24 @@ export function SonoraEditor() {
 
     try {
       const visual = await canvasRef.current.exportVisual();
+      if (exportEpoch !== exportEpochRef.current) return;
       const result = await exportSonoraVideo({
         visual,
         audio: audioFile,
         start: selection[0],
         end: selection[1],
-        onStatus: setExportStatus,
-        onProgress: setExportProgress,
+        onStatus: (status) => {
+          if (exportEpoch === exportEpochRef.current) {
+            setExportStatus(status);
+          }
+        },
+        onProgress: (progress) => {
+          if (exportEpoch === exportEpochRef.current) {
+            setExportProgress(progress);
+          }
+        },
       });
-      if (cancelledRef.current) return;
+      if (exportEpoch !== exportEpochRef.current) return;
 
       const nextFilename = outputFilename();
       const nextUrl = URL.createObjectURL(result);
@@ -234,14 +248,14 @@ export function SonoraEditor() {
       setExportStatus("Your story is ready.");
       setExportState("complete");
     } catch (error) {
-      if (cancelledRef.current) return;
+      if (exportEpoch !== exportEpochRef.current) return;
       setExportError(errorMessage(error));
       setExportState("error");
     }
   };
 
   const cancelExport = () => {
-    cancelledRef.current = true;
+    exportEpochRef.current += 1;
     cancelSonoraExport();
     setExportState("idle");
     setExportStatus("");
@@ -273,6 +287,7 @@ export function SonoraEditor() {
           <StoryCanvas
             ref={canvasRef}
             image={image}
+            motionDuration={selection[1] - selection[0]}
             settings={settings}
             onSettingsChange={updateSettings}
           />
@@ -413,7 +428,8 @@ export function SonoraEditor() {
                   <div className="flex flex-col gap-1">
                     <FieldLabel>Motion</FieldLabel>
                     <FieldDescription>
-                      The live preview matches the seamless 60 FPS export.
+                      Push and pull span the full audio range. Other effects use
+                      the selected pace.
                     </FieldDescription>
                   </div>
                   <ToggleGroup
@@ -432,6 +448,14 @@ export function SonoraEditor() {
                       <CircleIcon data-icon="inline-start" />
                       Still
                     </ToggleGroupItem>
+                    <ToggleGroupItem value="zoomin">
+                      <ZoomInIcon data-icon="inline-start" />
+                      Zoom in
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="zoomout">
+                      <ZoomOutIcon data-icon="inline-start" />
+                      Zoom out
+                    </ToggleGroupItem>
                     <ToggleGroupItem value="breathe">
                       <ActivityIcon data-icon="inline-start" />
                       Breathe
@@ -443,6 +467,10 @@ export function SonoraEditor() {
                     <ToggleGroupItem value="pulse">
                       <SparklesIcon data-icon="inline-start" />
                       Pulse
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="sway">
+                      <WavesIcon data-icon="inline-start" />
+                      Sway
                     </ToggleGroupItem>
                   </ToggleGroup>
                 </Field>
@@ -474,31 +502,42 @@ export function SonoraEditor() {
                         }}
                       />
                     </Field>
-                    <Field orientation="horizontal">
-                      <div className="flex flex-1 flex-col gap-1">
-                        <FieldLabel>Speed</FieldLabel>
+                    {FULL_DURATION_PRESETS.has(settings.motionPreset) ? (
+                      <Field>
                         <FieldDescription>
-                          Slow uses a longer, calmer loop.
+                          This camera move runs once across the exact audio
+                          selection instead of repeating a short effect pass.
                         </FieldDescription>
-                      </div>
-                      <ToggleGroup
-                        value={[settings.motionSpeed]}
-                        onValueChange={(value) => {
-                          const motionSpeed = value[0] as
-                            | MotionSpeed
-                            | undefined;
-                          if (motionSpeed) {
-                            updateSettings({ ...settings, motionSpeed });
-                          }
-                        }}
-                        variant="outline"
-                        spacing={0}
-                      >
-                        <ToggleGroupItem value="slow">Slow</ToggleGroupItem>
-                        <ToggleGroupItem value="normal">Normal</ToggleGroupItem>
-                        <ToggleGroupItem value="fast">Fast</ToggleGroupItem>
-                      </ToggleGroup>
-                    </Field>
+                      </Field>
+                    ) : (
+                      <Field orientation="horizontal">
+                        <div className="flex flex-1 flex-col gap-1">
+                          <FieldLabel>Speed</FieldLabel>
+                          <FieldDescription>
+                            Slow gives the motion more room to develop.
+                          </FieldDescription>
+                        </div>
+                        <ToggleGroup
+                          value={[settings.motionSpeed]}
+                          onValueChange={(value) => {
+                            const motionSpeed = value[0] as
+                              | MotionSpeed
+                              | undefined;
+                            if (motionSpeed) {
+                              updateSettings({ ...settings, motionSpeed });
+                            }
+                          }}
+                          variant="outline"
+                          spacing={0}
+                        >
+                          <ToggleGroupItem value="slow">Slow</ToggleGroupItem>
+                          <ToggleGroupItem value="normal">
+                            Normal
+                          </ToggleGroupItem>
+                          <ToggleGroupItem value="fast">Fast</ToggleGroupItem>
+                        </ToggleGroup>
+                      </Field>
+                    )}
                   </FieldGroup>
                 ) : null}
 

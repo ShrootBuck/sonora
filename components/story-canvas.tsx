@@ -21,8 +21,10 @@ import {
 import {
   type CompositionSettings,
   clampPan,
+  FULL_DURATION_PRESETS,
   getBackgroundRect,
   getImageRect,
+  getMotionTransform,
   motionLoopSeconds,
   STORY_HEIGHT,
   STORY_WIDTH,
@@ -35,12 +37,16 @@ export type StoryCanvasHandle = {
 
 type StoryCanvasProps = {
   image: HTMLImageElement;
+  motionDuration: number;
   settings: CompositionSettings;
   onSettingsChange: (settings: CompositionSettings) => void;
 };
 
 export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
-  function StoryCanvas({ image, settings, onSettingsChange }, ref) {
+  function StoryCanvas(
+    { image, motionDuration, settings, onSettingsChange },
+    ref,
+  ) {
     const wrapperRef = useRef<HTMLDivElement>(null);
     const stageRef = useRef<Konva.Stage>(null);
     const backgroundLayerRef = useRef<Konva.Layer>(null);
@@ -110,11 +116,14 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
       const resetMotion = () => {
         if (background) {
           background.position({ x: backgroundRect.x, y: backgroundRect.y });
+          background.offset({ x: 0, y: 0 });
           background.scale({ x: 1, y: 1 });
+          background.rotation(0);
         }
         foregroundLayer.position({ x: 0, y: 0 });
         foregroundLayer.offset({ x: 0, y: 0 });
         foregroundLayer.scale({ x: 1, y: 1 });
+        foregroundLayer.rotation(0);
       };
 
       resetMotion();
@@ -130,46 +139,46 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
         return;
       }
 
-      const duration = motionLoopSeconds(settings.motionSpeed) * 1000;
-      const strength = settings.motionStrength / 100;
+      const previewSeconds =
+        FULL_DURATION_PRESETS.has(settings.motionPreset) && motionDuration > 0
+          ? motionDuration
+          : motionLoopSeconds(settings.motionSpeed);
+      const frameCount = Math.max(2, previewSeconds * 60);
       const animation = new Konva.Animation((frame) => {
         if (!frame) return;
-        const phase = ((frame.time % duration) / duration) * Math.PI * 2;
-        const pulse = (1 - Math.cos(phase)) / 2;
-        let scale = 1;
-        let driftX = 0;
-        let driftY = 0;
-
-        if (settings.motionPreset === "breathe") {
-          scale = 1 + 0.06 * strength * pulse;
-          driftX = Math.sin(phase) * 7 * strength * pulse;
-          driftY = Math.sin(phase * 2) * 9 * strength * pulse;
-        } else if (settings.motionPreset === "drift") {
-          scale = 1 + 0.055 * strength;
-          driftX = Math.sin(phase) * 20 * strength;
-          driftY = Math.cos(phase) * 28 * strength;
-        } else if (settings.motionPreset === "pulse") {
-          scale = 1 + 0.045 * strength * ((1 - Math.cos(phase * 3)) / 2);
-        }
+        const motionFrame = ((frame.time / 1000) * 60) % frameCount;
+        const transform = getMotionTransform(
+          settings.motionPreset,
+          settings.motionStrength,
+          motionFrame,
+          frameCount,
+        );
+        const rotation = transform.rotation * (180 / Math.PI);
 
         if (settings.mode === "fit" && background) {
           const centerX = backgroundRect.x + backgroundRect.width / 2;
           const centerY = backgroundRect.y + backgroundRect.height / 2;
-          background.position({
-            x: centerX - (backgroundRect.width * scale) / 2 + driftX,
-            y: centerY - (backgroundRect.height * scale) / 2 + driftY,
+          background.offset({
+            x: backgroundRect.width / 2,
+            y: backgroundRect.height / 2,
           });
-          background.scale({ x: scale, y: scale });
+          background.position({
+            x: centerX + transform.x,
+            y: centerY + transform.y,
+          });
+          background.scale({ x: transform.scale, y: transform.scale });
+          background.rotation(rotation);
         } else {
           foregroundLayer.offset({
             x: STORY_WIDTH / 2,
             y: STORY_HEIGHT / 2,
           });
           foregroundLayer.position({
-            x: STORY_WIDTH / 2 + driftX,
-            y: STORY_HEIGHT / 2 + driftY,
+            x: STORY_WIDTH / 2 + transform.x,
+            y: STORY_HEIGHT / 2 + transform.y,
           });
-          foregroundLayer.scale({ x: scale, y: scale });
+          foregroundLayer.scale({ x: transform.scale, y: transform.scale });
+          foregroundLayer.rotation(rotation);
         }
       }, animatedLayer);
 
@@ -186,6 +195,7 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
       };
     }, [
       backgroundRect,
+      motionDuration,
       settings.mode,
       settings.motionPreset,
       settings.motionSpeed,
@@ -213,11 +223,14 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
           guideLayer?.visible(false);
           if (background && settings.mode === "fit") {
             background.position({ x: backgroundRect.x, y: backgroundRect.y });
+            background.offset({ x: 0, y: 0 });
             background.scale({ x: 1, y: 1 });
+            background.rotation(0);
           }
           foregroundLayer?.position({ x: 0, y: 0 });
           foregroundLayer?.offset({ x: 0, y: 0 });
           foregroundLayer?.scale({ x: 1, y: 1 });
+          foregroundLayer?.rotation(0);
           stage.draw();
 
           const toPng = (node: Konva.Node) => {

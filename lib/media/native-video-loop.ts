@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  getMotionTransform,
   STORY_HEIGHT,
   STORY_WIDTH,
   type StoryVisual,
@@ -12,6 +13,7 @@ type LoadedDrawable = {
 };
 
 let cancelActiveEncode: (() => void) | null = null;
+let cancelEpoch = 0;
 
 async function loadDrawable(blob: Blob): Promise<LoadedDrawable> {
   if (typeof createImageBitmap === "function") {
@@ -40,51 +42,17 @@ async function loadDrawable(blob: Blob): Promise<LoadedDrawable> {
   };
 }
 
-function getMotionTransform(
-  visual: StoryVisual,
-  frame: number,
-  frameCount: number,
-) {
-  if (visual.motionPreset === "none") {
-    return { scale: 1, x: 0, y: 0 };
-  }
-
-  const strength = Math.max(0, Math.min(1, visual.motionStrength / 100));
-  const phase = (frame / frameCount) * Math.PI * 2;
-  const pulse = (1 - Math.cos(phase)) / 2;
-
-  if (visual.motionPreset === "drift") {
-    return {
-      scale: 1 + 0.055 * strength,
-      x: Math.sin(phase) * 20 * strength,
-      y: Math.cos(phase) * 28 * strength,
-    };
-  }
-
-  if (visual.motionPreset === "pulse") {
-    return {
-      scale: 1 + 0.045 * strength * ((1 - Math.cos(phase * 3)) / 2),
-      x: 0,
-      y: 0,
-    };
-  }
-
-  return {
-    scale: 1 + 0.06 * strength * pulse,
-    x: Math.sin(phase) * 7 * strength * pulse,
-    y: Math.sin(phase * 2) * 9 * strength * pulse,
-  };
-}
-
 function drawTransformed(
   context: CanvasRenderingContext2D,
   source: CanvasImageSource,
   scale: number,
   x: number,
   y: number,
+  rotation: number,
 ) {
   context.save();
   context.translate(STORY_WIDTH / 2 + x, STORY_HEIGHT / 2 + y);
+  context.rotate(rotation);
   context.scale(scale, scale);
   context.drawImage(
     source,
@@ -98,8 +66,15 @@ function drawTransformed(
 
 export async function encodeNativeVideoLoop(
   visual: StoryVisual,
+  renderSeconds: number,
   onProgress: (progress: number) => void,
 ) {
+  const encodeEpoch = cancelEpoch;
+  const throwIfCancelled = () => {
+    if (encodeEpoch !== cancelEpoch) {
+      throw new DOMException("Export cancelled", "AbortError");
+    }
+  };
   const {
     BufferTarget,
     CanvasSource,
@@ -108,8 +83,8 @@ export async function encodeNativeVideoLoop(
     Quality,
     canEncodeVideo,
   } = await import("mediabunny");
-  const loopSeconds = visual.motionPreset === "none" ? 1 : visual.loopSeconds;
-  const frameCount = loopSeconds * 60;
+  throwIfCancelled();
+  const frameCount = Math.max(1, Math.ceil(renderSeconds * 60));
   const quality = new Quality({
     quantizer: 14,
     bitrate: 20_000_000,
@@ -123,6 +98,7 @@ export async function encodeNativeVideoLoop(
     hardwareAcceleration: "no-preference",
     latencyMode: "quality",
   });
+  throwIfCancelled();
 
   if (!supported) {
     throw new Error("This browser does not expose a native H.264 encoder.");
@@ -143,6 +119,11 @@ export async function encodeNativeVideoLoop(
           loadDrawable(visual.background),
           loadDrawable(visual.foreground),
         ]);
+  if (encodeEpoch !== cancelEpoch) {
+    for (const item of loaded) item.dispose();
+    canvas.remove();
+    throw new DOMException("Export cancelled", "AbortError");
+  }
   const target = new BufferTarget();
   const output = new Output({
     format: new Mp4OutputFormat({ fastStart: "in-memory" }),
@@ -161,21 +142,29 @@ export async function encodeNativeVideoLoop(
   output.addVideoTrack(source, { frameRate: 60 });
 
   let cancelled = false;
-  cancelActiveEncode = () => {
+  const cancelEncode = () => {
     cancelled = true;
     void output.cancel();
   };
+  cancelActiveEncode = cancelEncode;
 
   try {
     await output.start();
 
     for (let frame = 0; frame < frameCount; frame += 1) {
-      if (cancelled) throw new DOMException("Export cancelled", "AbortError");
+      if (cancelled || encodeEpoch !== cancelEpoch) {
+        throw new DOMException("Export cancelled", "AbortError");
+      }
 
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = "#11100f";
       context.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
-      const transform = getMotionTransform(visual, frame, frameCount);
+      const transform = getMotionTransform(
+        visual.motionPreset,
+        visual.motionStrength,
+        frame,
+        frameCount,
+      );
 
       drawTransformed(
         context,
@@ -183,6 +172,7 @@ export async function encodeNativeVideoLoop(
         transform.scale,
         transform.x,
         transform.y,
+        transform.rotation,
       );
       if (visual.kind === "layers") {
         context.drawImage(loaded[1].source, 0, 0, STORY_WIDTH, STORY_HEIGHT);
@@ -205,12 +195,13 @@ export async function encodeNativeVideoLoop(
     }
     throw error;
   } finally {
-    if (cancelActiveEncode) cancelActiveEncode = null;
+    if (cancelActiveEncode === cancelEncode) cancelActiveEncode = null;
     for (const item of loaded) item.dispose();
     canvas.remove();
   }
 }
 
 export function cancelNativeVideoLoop() {
+  cancelEpoch += 1;
   cancelActiveEncode?.();
 }

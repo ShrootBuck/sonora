@@ -1,6 +1,11 @@
 "use client";
 
-import type { StoryVisual } from "@/lib/media/composition";
+import {
+  motionRenderSeconds,
+  STORY_HEIGHT,
+  STORY_WIDTH,
+  type StoryVisual,
+} from "@/lib/media/composition";
 import {
   cancelNativeVideoLoop,
   encodeNativeVideoLoop,
@@ -30,8 +35,12 @@ function sameOriginUrl(path: string) {
 async function createAndLoadFFmpeg(
   threaded: boolean,
   onStatus: (status: string) => void,
+  exportEpoch: number,
 ) {
   const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+  if (exportEpoch !== cancelEpoch) {
+    throw new DOMException("Export cancelled", "AbortError");
+  }
   const instance = new FFmpeg();
   loadingInstance = instance;
   const base = threaded ? "/ffmpeg/mt" : "/ffmpeg/st";
@@ -59,30 +68,57 @@ async function createAndLoadFFmpeg(
   }
 }
 
-async function getFFmpeg(onStatus: (status: string) => void) {
-  if (ffmpeg) return ffmpeg;
-  if (loadPromise) return loadPromise;
+async function getFFmpeg(
+  onStatus: (status: string) => void,
+  exportEpoch: number,
+) {
+  const ensureCurrentExport = () => {
+    if (exportEpoch !== cancelEpoch) {
+      throw new DOMException("Export cancelled", "AbortError");
+    }
+  };
 
-  loadPromise = (async () => {
+  ensureCurrentExport();
+  if (ffmpeg) return ffmpeg;
+  if (loadPromise) {
+    const instance = await loadPromise;
+    ensureCurrentExport();
+    return instance;
+  }
+
+  const currentLoadPromise = (async () => {
     const canThread =
       window.crossOriginIsolated && typeof SharedArrayBuffer !== "undefined";
 
     if (canThread) {
       try {
-        return await createAndLoadFFmpeg(true, onStatus);
-      } catch {
+        const instance = await createAndLoadFFmpeg(true, onStatus, exportEpoch);
+        if (exportEpoch !== cancelEpoch) {
+          instance.terminate();
+          throw new DOMException("Export cancelled", "AbortError");
+        }
+        return instance;
+      } catch (error) {
+        if (exportEpoch !== cancelEpoch) throw error;
         onStatus("Multithreading is unavailable. Falling back safely…");
       }
     }
 
-    return await createAndLoadFFmpeg(false, onStatus);
+    const instance = await createAndLoadFFmpeg(false, onStatus, exportEpoch);
+    if (exportEpoch !== cancelEpoch) {
+      instance.terminate();
+      throw new DOMException("Export cancelled", "AbortError");
+    }
+    return instance;
   })();
+  loadPromise = currentLoadPromise;
 
   try {
-    ffmpeg = await loadPromise;
+    ffmpeg = await currentLoadPromise;
+    ensureCurrentExport();
     return ffmpeg;
   } finally {
-    loadPromise = null;
+    if (loadPromise === currentLoadPromise) loadPromise = null;
   }
 }
 
@@ -137,29 +173,81 @@ function zoompanFilter(
   frames: number,
 ) {
   const strength = Math.max(0, Math.min(1, strengthValue / 100));
-  const phase = `(2*PI*on/${frames})`;
+  const outputPhase = `(2*PI*on/${frames})`;
+  const inputPhase = `(2*PI*n/${frames})`;
+  const centerX = "iw/2-(iw/zoom/2)";
+  const centerY = "ih/2-(ih/zoom/2)";
+  let zoom = "1";
+  let x = centerX;
+  let y = centerY;
+  let rotation = "0";
+  const transformCoverZoom = (angle: string, xMotion = "0", yMotion = "0") => {
+    const horizontalCover = `(abs(cos(${angle}))+${(
+      STORY_HEIGHT / STORY_WIDTH
+    ).toFixed(
+      8,
+    )}*abs(sin(${angle}))+${(2 / STORY_WIDTH).toFixed(8)}*abs(cos(${angle})*(${xMotion})+sin(${angle})*(${yMotion})))`;
+    const verticalCover = `(abs(cos(${angle}))+${(
+      STORY_WIDTH / STORY_HEIGHT
+    ).toFixed(
+      8,
+    )}*abs(sin(${angle}))+${(2 / STORY_HEIGHT).toFixed(8)}*abs(sin(${angle})*(${xMotion})-cos(${angle})*(${yMotion})))`;
+    return `1+max(0,max(${horizontalCover},${verticalCover})-1)*1.03`;
+  };
 
-  if (preset === "drift") {
-    const zoom = 1 + 0.055 * strength;
-    return [
-      `zoompan=z='${zoom.toFixed(5)}':`,
-      `x='iw/2-(iw/zoom/2)+((iw-iw/zoom)/2)*0.68*sin${phase}':`,
-      `y='ih/2-(ih/zoom/2)+((ih-ih/zoom)/2)*0.68*cos${phase}':`,
-      `d=1:s=1080x1920:fps=60`,
-    ].join("");
+  if (preset === "zoomin" || preset === "zoomout") {
+    const amount = (0.28 * strength).toFixed(6);
+    const progress =
+      preset === "zoomin" ? `(on/${frames - 1})` : `(1-on/${frames - 1})`;
+    zoom = `1+${amount}*${progress}`;
+    x = `${centerX}-((iw-iw/zoom)/2)*0.32*${progress}/zoom`;
+    y = `${centerY}+((ih-ih/zoom)/2)*0.20*${progress}/zoom`;
+  } else if (preset === "breathe") {
+    const wave = `sin(${outputPhase}-PI/2)`;
+    const breath = `(sgn(${wave})*pow(abs(${wave}),1.45)+1)/2`;
+    zoom = `1+${(0.085 * strength).toFixed(6)}*${breath}`;
+    x = `${centerX}-((iw-iw/zoom)/2)*0.28*sin${outputPhase}/zoom`;
+    y = `${centerY}+((ih-ih/zoom)/2)*0.22*${breath}/zoom`;
+  } else if (preset === "drift") {
+    const baseZoom = 1 + 0.11 * strength;
+    const angle = `${(0.5 * strength * (Math.PI / 180)).toFixed(8)}*sin${outputPhase}`;
+    const xMotion = `${((1 - 1 / baseZoom) * (STORY_WIDTH / 2) * 0.82).toFixed(
+      6,
+    )}*sin${outputPhase}`;
+    const yMotion = `${((1 - 1 / baseZoom) * (STORY_HEIGHT / 2) * 0.58).toFixed(
+      6,
+    )}*sin(2*${outputPhase}+PI/2)`;
+    const transformCover = transformCoverZoom(angle, xMotion, yMotion);
+    zoom = `max(${baseZoom.toFixed(6)},${transformCover})`;
+    x = `${centerX}-${xMotion}/zoom`;
+    y = `${centerY}-${yMotion}/zoom`;
+    rotation = `${(0.5 * strength * (Math.PI / 180)).toFixed(8)}*sin${inputPhase}`;
+  } else if (preset === "pulse") {
+    const outputThump = `pow(max(0,0.5-0.5*cos(3*${outputPhase})),0.72)`;
+    const inputThump = `pow(max(0,0.5-0.5*cos(3*${inputPhase})),0.72)`;
+    const angle = `${(0.22 * strength * (Math.PI / 180)).toFixed(8)}*sin(3*${outputPhase})*${outputThump}`;
+    const transformCover = transformCoverZoom(angle);
+    zoom = `max(1+${(0.065 * strength).toFixed(6)}*${outputThump},${transformCover})`;
+    rotation = `${(0.22 * strength * (Math.PI / 180)).toFixed(8)}*sin(3*${inputPhase})*${inputThump}`;
+  } else if (preset === "sway") {
+    const outputAngle = `${(2.2 * strength * (Math.PI / 180)).toFixed(8)}*sin${outputPhase}`;
+    const xMotion = `${(STORY_WIDTH * 0.006 * strength).toFixed(5)}*sin${outputPhase}`;
+    zoom = transformCoverZoom(outputAngle, xMotion);
+    x = `${centerX}-${xMotion}/zoom`;
+    rotation = `${(2.2 * strength * (Math.PI / 180)).toFixed(8)}*sin${inputPhase}`;
   }
 
-  const zoomAmount = Math.max(0.001, 0.06 * strength);
-  const cycles = preset === "pulse" ? 3 : 1;
-  const zoomExpression =
-    `1+${zoomAmount.toFixed(5)}*` + `(0.5-0.5*cos(${cycles}*${phase}))`;
-  const driftScale = preset === "breathe" ? 0.16 : 0;
+  const rotate =
+    rotation === "0"
+      ? ""
+      : `rotate=a='${rotation}':ow=iw:oh=ih:fillcolor=0x11100f,`;
 
   return [
-    `zoompan=z='${zoomExpression}':`,
-    `x='iw/2-(iw/zoom/2)+((iw-iw/zoom)/2)*${driftScale}*sin${phase}':`,
-    `y='ih/2-(ih/zoom/2)+((ih-ih/zoom)/2)*${driftScale}*sin(2*${phase})':`,
-    `d=1:s=1080x1920:fps=60`,
+    rotate,
+    `zoompan=z='${zoom}':`,
+    `x='${x}':`,
+    `y='${y}':`,
+    `d=1:s=${STORY_WIDTH}x${STORY_HEIGHT}:fps=60`,
   ].join("");
 }
 
@@ -172,6 +260,7 @@ async function encodeVisualLoop(
     foreground: string;
     loop: string;
   },
+  renderSeconds: number,
 ) {
   if (visual.kind === "composite") {
     await instance.writeFile(
@@ -180,7 +269,7 @@ async function encodeVisualLoop(
     );
 
     if (visual.motionPreset !== "none") {
-      const frames = visual.loopSeconds * 60;
+      const frames = Math.max(2, Math.ceil(renderSeconds * 60));
       const filter = `[0:v]${zoompanFilter(
         visual.motionPreset,
         visual.motionStrength,
@@ -198,7 +287,7 @@ async function encodeVisualLoop(
         "-map",
         "[v]",
         "-t",
-        visual.loopSeconds.toString(),
+        renderSeconds.toString(),
         ...VIDEO_ENCODER_ARGS,
         names.loop,
       ]);
@@ -231,7 +320,7 @@ async function encodeVisualLoop(
 
   // The blurred layer is already rendered. FFmpeg only moves that bitmap and
   // overlays the sharp photo, which is much cheaper than blurring every frame.
-  const frames = visual.loopSeconds * 60;
+  const frames = Math.max(2, Math.ceil(renderSeconds * 60));
   const motionFilter = [
     `[0:v]${zoompanFilter(
       visual.motionPreset,
@@ -260,7 +349,7 @@ async function encodeVisualLoop(
     "-map",
     "[v]",
     "-t",
-    visual.loopSeconds.toString(),
+    renderSeconds.toString(),
     ...VIDEO_ENCODER_ARGS,
     names.loop,
   ]);
@@ -293,14 +382,17 @@ export async function exportSonoraVideo({
   if (!(duration > 0)) {
     throw new Error("Choose an audio range longer than zero seconds.");
   }
+  const renderSeconds = motionRenderSeconds(visual, duration);
 
   try {
     onStatus(
-      "Encoding the 60 FPS loop with your browser’s native H.264 encoder…",
+      "Rendering 60 FPS motion with your browser’s native H.264 encoder…",
     );
     try {
-      nativeLoop = await encodeNativeVideoLoop(visual, (progress) =>
-        onProgress(progress * 0.7),
+      nativeLoop = await encodeNativeVideoLoop(
+        visual,
+        renderSeconds,
+        (progress) => onProgress(progress * 0.7),
       );
     } catch (error) {
       if (exportEpoch !== cancelEpoch) throw error;
@@ -314,7 +406,7 @@ export async function exportSonoraVideo({
       throw new DOMException("Export cancelled", "AbortError");
     }
 
-    instance = await getFFmpeg(onStatus);
+    instance = await getFFmpeg(onStatus, exportEpoch);
     progressListener = ({ progress }) => {
       if (!Number.isFinite(progress)) return;
       const normalized = Math.max(0, Math.min(1, progress));
@@ -336,9 +428,14 @@ export async function exportSonoraVideo({
       onStatus(
         visual.motionPreset === "none"
           ? "Encoding one reusable second at 60 FPS…"
-          : "Encoding one seamless 60 FPS effect loop…",
+          : "Encoding the 60 FPS camera effect…",
       );
-      const loopExitCode = await encodeVisualLoop(instance, visual, names);
+      const loopExitCode = await encodeVisualLoop(
+        instance,
+        visual,
+        names,
+        renderSeconds,
+      );
       if (loopExitCode !== 0) {
         throw new Error(`FFmpeg stopped with exit code ${loopExitCode}.`);
       }
