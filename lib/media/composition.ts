@@ -12,6 +12,30 @@ export type MotionPreset =
   | "sway";
 export type MotionSpeed = "slow" | "normal" | "fast";
 
+export type BackdropStyle =
+  | "melt"
+  | "glow"
+  | "liquid"
+  | "swirl"
+  | "grain"
+  | "solid"
+  | "photo";
+export type BackdropColors = [string, string, string];
+export type BackdropSettings = {
+  style: BackdropStyle;
+  palette: string;
+  colors: BackdropColors;
+  animated: boolean;
+  speed: MotionSpeed;
+  intensity: number;
+  detail: number;
+  grain: number;
+  dim: number;
+  seed: number;
+  /** A small, soft color field sampled locally; never the sharp foreground. */
+  photoField?: number[];
+};
+
 export type MotionTransform = {
   scale: number;
   x: number;
@@ -36,6 +60,7 @@ export type CompositionSettings = {
   motionStrength: number;
   motionSpeed: MotionSpeed;
   showGuides: boolean;
+  backdrop: BackdropSettings;
 };
 
 export type ImageRect = {
@@ -46,6 +71,14 @@ export type ImageRect = {
 };
 
 export type StoryVisual =
+  | {
+      kind: "backdrop";
+      foreground: Blob;
+      backdrop: BackdropSettings;
+      motionPreset: "none";
+      motionStrength: 0;
+      loopSeconds: number;
+    }
   | {
       kind: "composite";
       frame: Blob;
@@ -63,7 +96,7 @@ export type StoryVisual =
     };
 
 export const DEFAULT_COMPOSITION: CompositionSettings = {
-  mode: "fill",
+  mode: "fit",
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -72,6 +105,18 @@ export const DEFAULT_COMPOSITION: CompositionSettings = {
   motionStrength: 55,
   motionSpeed: "normal",
   showGuides: false,
+  backdrop: {
+    style: "melt",
+    palette: "photo",
+    colors: ["#102739", "#3888ac", "#eeae75"],
+    animated: true,
+    speed: "slow",
+    intensity: 65,
+    detail: 45,
+    grain: 12,
+    dim: 12,
+    seed: 1,
+  },
 };
 
 export function motionLoopSeconds(speed: MotionSpeed) {
@@ -84,6 +129,11 @@ export function motionRenderSeconds(
   visual: StoryVisual,
   durationSeconds: number,
 ) {
+  if (visual.kind === "backdrop") {
+    return visual.backdrop.animated && visual.backdrop.style !== "solid"
+      ? visual.loopSeconds
+      : 1;
+  }
   if (visual.motionPreset === "none") return 1;
   if (FULL_DURATION_PRESETS.has(visual.motionPreset)) {
     return durationSeconds;
@@ -187,7 +237,7 @@ export function getImageRect(
     mode === "fill"
       ? Math.max(STORY_WIDTH / imageWidth, STORY_HEIGHT / imageHeight)
       : Math.min(STORY_WIDTH / imageWidth, STORY_HEIGHT / imageHeight);
-  const scale = baseScale * zoom;
+  const scale = baseScale * clampZoom(mode, zoom);
   const width = imageWidth * scale;
   const height = imageHeight * scale;
 
@@ -236,20 +286,20 @@ export function clampPan(
     };
   }
 
-  // Fit mode intentionally allows loose placement. Keep a small part of the
-  // photo visible so it cannot disappear completely off-canvas.
-  const visibleEdge = 72;
-  const centeredX = (STORY_WIDTH - rect.width) / 2;
-  const centeredY = (STORY_HEIGHT - rect.height) / 2;
-  const minX = visibleEdge - rect.width - centeredX;
-  const maxX = STORY_WIDTH - visibleEdge - centeredX;
-  const minY = visibleEdge - rect.height - centeredY;
-  const maxY = STORY_HEIGHT - visibleEdge - centeredY;
+  // Fit always preserves the entire photo, even while dragging or pinching.
+  const maxX = Math.max(0, (STORY_WIDTH - rect.width) / 2);
+  const maxY = Math.max(0, (STORY_HEIGHT - rect.height) / 2);
 
   return {
-    panX: Math.max(minX, Math.min(maxX, panX)),
-    panY: Math.max(minY, Math.min(maxY, panY)),
+    panX: Math.max(-maxX, Math.min(maxX, panX)),
+    panY: Math.max(-maxY, Math.min(maxY, panY)),
   };
+}
+
+export function clampZoom(mode: CompositionMode, zoom: number) {
+  return mode === "fit"
+    ? Math.max(0.3, Math.min(1, zoom))
+    : Math.max(1, Math.min(4, zoom));
 }
 
 export function resetForMode(

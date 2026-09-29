@@ -32,12 +32,13 @@ export default function Home() {
           <Badge variant="outline">Dynamic picture stories • 60 FPS</Badge>
           <div className="flex flex-col gap-3">
             <h1 className="text-balance text-4xl font-semibold tracking-[-0.04em] sm:text-6xl">
-              Make one photo feel alive.
+              The whole photo. A whole new atmosphere.
             </h1>
             <p className="max-w-2xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Frame it, give it motion, cut the exact audio, and export a
-              high-quality 1080 × 1920 video at 60 FPS. No upload, account,
-              queue, or fake duration limit.
+              Keep your favorite wide shot intact. Surround it with liquid
+              color, swirling gradients, or a quiet glow. Add the perfect audio
+              and make it a 1080 × 1920 story at 60 FPS. Everything stays on
+              your device.
             </p>
           </div>
         </section>

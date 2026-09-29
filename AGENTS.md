@@ -48,9 +48,16 @@ the product direction static-only again.
 
 - **Fill** crops the photo to the full 9:16 canvas. Motion affects the complete
   image.
-- **Fit** keeps the foreground photo sharp and shows an adjustable blurred
-  background. Motion affects the blurred background while the foreground stays
-  sharp and stationary.
+- **Fit** is the default, preserves the entire foreground photo, and supports
+  30–100% sizing with drag bounds that keep every edge visible. Upper/center/lower
+  placement controls complement dragging.
+- Fit backdrops are Photo melt (default), Glow, Liquid, Swirl, Haze, Solid, and
+  Photo blur. Colors default to the photo. Photo melt warps a 32 × 32 color field
+  sampled locally from the image; other abstract effects use its extracted palette.
+  Optional palettes/custom colors, animation, pace, intensity, detail, grain,
+  dimming, and seeded pattern variations are available.
+- Abstract backdrops animate independently; the sharp foreground stays stationary.
+  Camera motion presets apply to Fill and Photo blur.
 - Current motion presets are Still, Zoom In, Zoom Out, Breathe, Drift, Pulse,
   and Sway.
 - Dynamic presets have adjustable intensity. Breathe, Drift, Pulse, and Sway
@@ -77,6 +84,12 @@ the product direction static-only again.
   `SharedArrayBuffer` and the multithreaded FFmpeg core. Sonora falls back to the
   single-thread core when isolation or threads are unavailable.
 
+Abstract backdrops use the same painter for preview, native encoding, and the
+FFmpeg fallback. Photo melt uses a lazily loaded Three.js WebGL renderer inside
+Konva; it does not replace Konva. The fallback uses bounded batches of lossless
+PNG frames and concatenates their CRF 14 H.264 chunks. Dispose GPU resources and
+delete temporary FFmpeg files on success, error, and cancellation.
+
 The exporter encodes Still as one reusable second. Breathe, Drift, Pulse, and
 Sway encode one 4, 6, or 8 second effect pass, then FFmpeg repeats the compressed
 stream while it trims and muxes audio. Zoom In and Zoom Out instead encode a
@@ -94,7 +107,11 @@ degrade the default output.
 - `components/story-canvas.tsx`: Konva preview, framing, motion, and layer
   export.
 - `components/audio-timeline.tsx`: waveform and exact audio selection.
-- `lib/media/composition.ts`: shared composition and motion types.
+- `lib/media/composition.ts`: shared composition, backdrop, and motion types.
+- `components/backdrop-controls.tsx`: backdrop styles, palettes, and controls.
+- `lib/media/backdrop.ts`: photo color extraction and vector effect artwork.
+- `lib/media/backdrop-painter.ts`: shared painter used by preview and both encoders.
+- `lib/media/photo-melt.ts`: Three.js shader for image-derived fluid color.
 - `lib/media/ffmpeg-client.ts`: FFmpeg loading, loop encoding, and final mux.
 - `lib/media/native-video-loop.ts`: Mediabunny/WebCodecs 60 FPS loop encoding.
 - `lib/media/load-image.ts`: browser image loading and HEIC fallback.

@@ -1,13 +1,17 @@
 "use client";
 
 import {
+  type BackdropPainter,
+  createBackdropPainter,
+} from "@/lib/media/backdrop-painter";
+import {
   getMotionTransform,
   STORY_HEIGHT,
   STORY_WIDTH,
   type StoryVisual,
 } from "@/lib/media/composition";
 
-type LoadedDrawable = {
+export type LoadedDrawable = {
   source: CanvasImageSource;
   dispose: () => void;
 };
@@ -15,7 +19,7 @@ type LoadedDrawable = {
 let cancelActiveEncode: (() => void) | null = null;
 let cancelEpoch = 0;
 
-async function loadDrawable(blob: Blob): Promise<LoadedDrawable> {
+export async function loadDrawable(blob: Blob): Promise<LoadedDrawable> {
   if (typeof createImageBitmap === "function") {
     const bitmap = await createImageBitmap(blob);
     return {
@@ -113,12 +117,14 @@ export async function encodeNativeVideoLoop(
   context.imageSmoothingQuality = "high";
 
   const loaded =
-    visual.kind === "composite"
-      ? [await loadDrawable(visual.frame)]
-      : await Promise.all([
-          loadDrawable(visual.background),
-          loadDrawable(visual.foreground),
-        ]);
+    visual.kind === "backdrop"
+      ? [await loadDrawable(visual.foreground)]
+      : visual.kind === "composite"
+        ? [await loadDrawable(visual.frame)]
+        : await Promise.all([
+            loadDrawable(visual.background),
+            loadDrawable(visual.foreground),
+          ]);
   if (encodeEpoch !== cancelEpoch) {
     for (const item of loaded) item.dispose();
     canvas.remove();
@@ -148,7 +154,11 @@ export async function encodeNativeVideoLoop(
   };
   cancelActiveEncode = cancelEncode;
 
+  let painter: BackdropPainter | null = null;
   try {
+    if (visual.kind === "backdrop")
+      painter = await createBackdropPainter(visual.backdrop);
+    throwIfCancelled();
     await output.start();
 
     for (let frame = 0; frame < frameCount; frame += 1) {
@@ -159,23 +169,28 @@ export async function encodeNativeVideoLoop(
       context.setTransform(1, 0, 0, 1, 0, 0);
       context.fillStyle = "#11100f";
       context.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
-      const transform = getMotionTransform(
-        visual.motionPreset,
-        visual.motionStrength,
-        frame,
-        frameCount,
-      );
+      if (visual.kind === "backdrop") {
+        painter?.draw(context, visual.backdrop, frame / frameCount);
+        context.drawImage(loaded[0].source, 0, 0, STORY_WIDTH, STORY_HEIGHT);
+      } else {
+        const transform = getMotionTransform(
+          visual.motionPreset,
+          visual.motionStrength,
+          frame,
+          frameCount,
+        );
 
-      drawTransformed(
-        context,
-        loaded[0].source,
-        transform.scale,
-        transform.x,
-        transform.y,
-        transform.rotation,
-      );
-      if (visual.kind === "layers") {
-        context.drawImage(loaded[1].source, 0, 0, STORY_WIDTH, STORY_HEIGHT);
+        drawTransformed(
+          context,
+          loaded[0].source,
+          transform.scale,
+          transform.x,
+          transform.y,
+          transform.rotation,
+        );
+        if (visual.kind === "layers") {
+          context.drawImage(loaded[1].source, 0, 0, STORY_WIDTH, STORY_HEIGHT);
+        }
       }
 
       await source.add(frame / 60, 1 / 60, {
@@ -196,6 +211,7 @@ export async function encodeNativeVideoLoop(
     throw error;
   } finally {
     if (cancelActiveEncode === cancelEncode) cancelActiveEncode = null;
+    painter?.dispose();
     for (const item of loaded) item.dispose();
     canvas.remove();
   }

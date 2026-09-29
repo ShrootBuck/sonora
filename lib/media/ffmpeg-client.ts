@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  type BackdropPainter,
+  createBackdropPainter,
+} from "@/lib/media/backdrop-painter";
+import {
   motionRenderSeconds,
   STORY_HEIGHT,
   STORY_WIDTH,
@@ -9,6 +13,7 @@ import {
 import {
   cancelNativeVideoLoop,
   encodeNativeVideoLoop,
+  loadDrawable,
 } from "@/lib/media/native-video-loop";
 
 type FFmpegClass = import("@ffmpeg/ffmpeg").FFmpeg;
@@ -24,7 +29,6 @@ type ExportOptions = {
 
 let ffmpeg: FFmpegClass | null = null;
 let loadPromise: Promise<FFmpegClass> | null = null;
-let progressListener: ((event: { progress: number }) => void) | null = null;
 let loadingInstance: FFmpegClass | null = null;
 let cancelEpoch = 0;
 
@@ -131,12 +135,21 @@ const VIDEO_ENCODER_ARGS = [
   "-an",
   "-c:v",
   "libx264",
+  // Bound WASM thread memory for both camera filters and procedural frames.
+  "-threads",
+  "2",
+  "-filter_complex_threads",
+  "1",
   "-preset",
   "veryfast",
   "-tune",
   "stillimage",
   "-crf",
   "14",
+  // Keep DTS equal to PTS so the final stream-copy trim cannot include
+  // reordered frames beyond the exact audio endpoint. CRF stays unchanged.
+  "-bf",
+  "0",
   "-profile:v",
   "high",
   "-level",
@@ -251,6 +264,128 @@ function zoompanFilter(
   ].join("");
 }
 
+/** Bound PNG memory to half a second, regardless of the effect duration.
+ * Each chunk keeps the full-resolution, lossless artwork until H.264 encoding.
+ */
+async function encodeBackdropLoop(
+  instance: FFmpegClass,
+  visual: Extract<StoryVisual, { kind: "backdrop" }>,
+  outputName: string,
+  renderSeconds: number,
+  exportEpoch: number,
+  onProgress: (progress: number) => void,
+  onStatus: (status: string) => void,
+) {
+  const ensureCurrent = () => {
+    if (exportEpoch !== cancelEpoch)
+      throw new DOMException("Export cancelled", "AbortError");
+  };
+  const foreground = await loadDrawable(visual.foreground);
+  const canvas = document.createElement("canvas");
+  canvas.width = STORY_WIDTH;
+  canvas.height = STORY_HEIGHT;
+  const files = new Set<string>();
+  const chunks: string[] = [];
+  const frameCount = Math.ceil(renderSeconds * 60);
+  const chunkSize = 30;
+  let painter: BackdropPainter | null = null;
+  try {
+    painter = await createBackdropPainter(visual.backdrop);
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context)
+      throw new Error("The browser could not create a video canvas.");
+    for (let start = 0; start < frameCount; start += chunkSize) {
+      ensureCurrent();
+      const count = Math.min(chunkSize, frameCount - start);
+      const frames: string[] = [];
+      onStatus(
+        `Drawing backdrop frames ${start + 1}–${start + count} of ${frameCount}…`,
+      );
+      for (let offset = 0; offset < count; offset++) {
+        ensureCurrent();
+        painter.draw(context, visual.backdrop, (start + offset) / frameCount);
+        context.drawImage(foreground.source, 0, 0, STORY_WIDTH, STORY_HEIGHT);
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (value) =>
+              value
+                ? resolve(value)
+                : reject(new Error("Could not render backdrop frame.")),
+            "image/png",
+          ),
+        );
+        ensureCurrent();
+        const name = `${outputName}-frame-${offset.toString().padStart(3, "0")}.png`;
+        files.add(name);
+        frames.push(name);
+        await instance.writeFile(
+          name,
+          new Uint8Array(await blob.arrayBuffer()),
+        );
+        onProgress((start + (offset + 1) * 0.35) / frameCount);
+      }
+      const chunk = `${outputName}-chunk-${chunks.length}.mp4`;
+      files.add(chunk);
+      onStatus(
+        `Encoding backdrop frames ${start + 1}–${start + count} of ${frameCount}…`,
+      );
+      const code = await instance.exec([
+        "-threads",
+        "1",
+        "-framerate",
+        "60",
+        "-i",
+        `${outputName}-frame-%03d.png`,
+        "-frames:v",
+        count.toString(),
+        ...VIDEO_ENCODER_ARGS,
+        chunk,
+      ]);
+      ensureCurrent();
+      if (code !== 0)
+        throw new Error(`Backdrop encoding stopped with exit code ${code}.`);
+      chunks.push(chunk);
+      await Promise.all(
+        frames.map(async (name) => {
+          await instance.deleteFile(name);
+          files.delete(name);
+        }),
+      );
+      onProgress((start + count) / frameCount);
+    }
+    const manifest = `${outputName}-concat.txt`;
+    files.add(manifest);
+    await instance.writeFile(
+      manifest,
+      new TextEncoder().encode(
+        chunks.map((name) => `file '${name}'`).join("\n"),
+      ),
+    );
+    ensureCurrent();
+    return await instance.exec([
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      manifest,
+      "-c:v",
+      "copy",
+      "-an",
+      "-movflags",
+      "+faststart",
+      outputName,
+    ]);
+  } finally {
+    painter?.dispose();
+    foreground.dispose();
+    canvas.width = canvas.height = 0;
+    await Promise.allSettled(
+      [...files].map((name) => instance.deleteFile(name)),
+    );
+  }
+}
+
 async function encodeVisualLoop(
   instance: FFmpegClass,
   visual: StoryVisual,
@@ -261,7 +396,21 @@ async function encodeVisualLoop(
     loop: string;
   },
   renderSeconds: number,
+  exportEpoch: number,
+  onProgress: (progress: number) => void,
+  onStatus: (status: string) => void,
 ) {
+  if (visual.kind === "backdrop") {
+    return encodeBackdropLoop(
+      instance,
+      visual,
+      names.loop,
+      renderSeconds,
+      exportEpoch,
+      onProgress,
+      onStatus,
+    );
+  }
   if (visual.kind === "composite") {
     await instance.writeFile(
       names.frame,
@@ -276,6 +425,8 @@ async function encodeVisualLoop(
         frames,
       )}[v]`;
       return await instance.exec([
+        "-threads",
+        "1",
         "-loop",
         "1",
         "-framerate",
@@ -294,6 +445,8 @@ async function encodeVisualLoop(
     }
 
     return await instance.exec([
+      "-threads",
+      "1",
       "-loop",
       "1",
       "-framerate",
@@ -332,12 +485,16 @@ async function encodeVisualLoop(
   ].join("");
 
   return await instance.exec([
+    "-threads",
+    "1",
     "-loop",
     "1",
     "-framerate",
     "60",
     "-i",
     names.background,
+    "-threads",
+    "1",
     "-loop",
     "1",
     "-framerate",
@@ -378,6 +535,7 @@ export async function exportSonoraVideo({
   let progressShare = 0.7;
   let instance: FFmpegClass | null = null;
   let nativeLoop: Uint8Array | null = null;
+  let progressListener: ((event: { progress: number }) => void) | null = null;
 
   if (!(duration > 0)) {
     throw new Error("Choose an audio range longer than zero seconds.");
@@ -408,7 +566,7 @@ export async function exportSonoraVideo({
 
     instance = await getFFmpeg(onStatus, exportEpoch);
     progressListener = ({ progress }) => {
-      if (!Number.isFinite(progress)) return;
+      if (progressShare === 0 || !Number.isFinite(progress)) return;
       const normalized = Math.max(0, Math.min(1, progress));
       onProgress(
         Math.max(0, Math.min(1, progressStart + normalized * progressShare)),
@@ -425,16 +583,22 @@ export async function exportSonoraVideo({
     if (nativeLoop) {
       await instance.writeFile(names.loop, nativeLoop);
     } else {
+      if (visual.kind === "backdrop") progressShare = 0;
       onStatus(
-        visual.motionPreset === "none"
-          ? "Encoding one reusable second at 60 FPS…"
-          : "Encoding the 60 FPS camera effect…",
+        visual.kind === "backdrop"
+          ? "Rendering your backdrop at 60 FPS…"
+          : visual.motionPreset === "none"
+            ? "Encoding one reusable second at 60 FPS…"
+            : "Encoding the 60 FPS camera effect…",
       );
       const loopExitCode = await encodeVisualLoop(
         instance,
         visual,
         names,
         renderSeconds,
+        exportEpoch,
+        (progress) => onProgress(progress * 0.7),
+        onStatus,
       );
       if (loopExitCode !== 0) {
         throw new Error(`FFmpeg stopped with exit code ${loopExitCode}.`);
@@ -509,5 +673,4 @@ export function cancelSonoraExport() {
   ffmpeg?.terminate();
   ffmpeg = null;
   loadPromise = null;
-  progressListener = null;
 }

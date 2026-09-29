@@ -14,13 +14,19 @@ import {
   Layer,
   Line,
   Rect,
+  Shape,
   Stage,
   Text,
 } from "react-konva";
 
 import {
+  type BackdropPainter,
+  createBackdropPainter,
+} from "@/lib/media/backdrop-painter";
+import {
   type CompositionSettings,
   clampPan,
+  clampZoom,
   FULL_DURATION_PRESETS,
   getBackgroundRect,
   getImageRect,
@@ -37,6 +43,7 @@ export type StoryCanvasHandle = {
 
 type StoryCanvasProps = {
   image: HTMLImageElement;
+  paused: boolean;
   motionDuration: number;
   settings: CompositionSettings;
   onSettingsChange: (settings: CompositionSettings) => void;
@@ -44,7 +51,7 @@ type StoryCanvasProps = {
 
 export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
   function StoryCanvas(
-    { image, motionDuration, settings, onSettingsChange },
+    { image, paused, motionDuration, settings, onSettingsChange },
     ref,
   ) {
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -55,6 +62,49 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
     const foregroundRef = useRef<Konva.Image>(null);
     const guideLayerRef = useRef<Konva.Layer>(null);
     const backgroundAnimationRef = useRef<Konva.Animation>(null);
+    const backdropPhaseRef = useRef(0);
+    const [painter, setPainter] = useState<BackdropPainter | null>(null);
+    const [backdropError, setBackdropError] = useState("");
+    const abstractBackdrop =
+      settings.mode === "fit" && settings.backdrop.style !== "photo";
+    useEffect(() => {
+      if (!abstractBackdrop) {
+        setBackdropError("");
+        setPainter(null);
+        return;
+      }
+      let disposed = false;
+      let active: BackdropPainter | undefined;
+      setPainter(null);
+      setBackdropError("");
+      void createBackdropPainter({
+        style: settings.backdrop.style,
+        photoField: settings.backdrop.photoField,
+      })
+        .then((next) => {
+          if (disposed) {
+            next.dispose();
+            return;
+          }
+          active = next;
+          setPainter(next);
+        })
+        .catch(() => {
+          if (!disposed)
+            setBackdropError(
+              "Photo melt needs WebGL on this device. Choose Glow, Liquid, or Swirl instead.",
+            );
+        });
+      return () => {
+        disposed = true;
+        active?.dispose();
+      };
+    }, [
+      abstractBackdrop,
+      settings.backdrop.style,
+      settings.backdrop.photoField,
+    ]);
+
     const pinchDistanceRef = useRef<number | null>(null);
     const pinchZoomRef = useRef(settings.zoom);
     const [displayWidth, setDisplayWidth] = useState(360);
@@ -90,7 +140,7 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
 
     useEffect(() => {
       const background = backgroundRef.current;
-      if (!background || settings.mode !== "fit") return;
+      if (!background || settings.mode !== "fit" || abstractBackdrop) return;
 
       background.setAttrs({
         image,
@@ -103,7 +153,7 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
       background.clearCache();
       background.cache({ pixelRatio: 1 });
       background.getLayer()?.batchDraw();
-    }, [backgroundRect, image, settings.blur, settings.mode]);
+    }, [abstractBackdrop, backgroundRect, image, settings.blur, settings.mode]);
 
     useEffect(() => {
       const background = backgroundRef.current;
@@ -127,9 +177,32 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
       };
 
       resetMotion();
+      if (abstractBackdrop && backgroundLayer) {
+        backdropPhaseRef.current = 0;
+        backgroundLayer.batchDraw();
+        if (
+          paused ||
+          !settings.backdrop.animated ||
+          settings.backdrop.style === "solid"
+        )
+          return;
+        const seconds = motionLoopSeconds(settings.backdrop.speed);
+        const animation = new Konva.Animation((frame) => {
+          if (frame)
+            backdropPhaseRef.current = (frame.time / 1000 / seconds) % 1;
+        }, backgroundLayer);
+        backgroundAnimationRef.current = animation;
+        animation.start();
+        return () => {
+          animation.stop();
+          if (backgroundAnimationRef.current === animation)
+            backgroundAnimationRef.current = null;
+        };
+      }
       const animatedLayer =
         settings.mode === "fit" ? backgroundLayer : foregroundLayer;
       if (
+        paused ||
         settings.motionPreset === "none" ||
         !animatedLayer ||
         (settings.mode === "fit" && !background)
@@ -194,6 +267,9 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
         foregroundLayer.batchDraw();
       };
     }, [
+      abstractBackdrop,
+      paused,
+      settings.backdrop,
       backgroundRect,
       motionDuration,
       settings.mode,
@@ -251,6 +327,21 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
           };
 
           try {
+            if (abstractBackdrop && foregroundLayer) {
+              if (backdropError) throw new Error(backdropError);
+              if (!painter)
+                throw new Error(
+                  "The backdrop is still loading. Try again in a moment.",
+                );
+              return {
+                kind: "backdrop",
+                foreground: await toPng(foregroundLayer),
+                backdrop: settings.backdrop,
+                motionPreset: "none",
+                motionStrength: 0,
+                loopSeconds: motionLoopSeconds(settings.backdrop.speed),
+              };
+            }
             if (
               settings.mode === "fit" &&
               settings.motionPreset !== "none" &&
@@ -281,11 +372,16 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
           } finally {
             guideLayer?.visible(guidesWereVisible);
             stage.draw();
-            animation?.start();
+            if (!paused) animation?.start();
           }
         },
       }),
       [
+        painter,
+        backdropError,
+        abstractBackdrop,
+        paused,
+        settings.backdrop,
         backgroundRect,
         settings.mode,
         settings.motionPreset,
@@ -316,7 +412,7 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
     };
 
     const applyZoom = (zoom: number) => {
-      const nextZoom = Math.max(1, Math.min(4, zoom));
+      const nextZoom = clampZoom(settings.mode, zoom);
       const nextPan = clampPan(
         image.naturalWidth,
         image.naturalHeight,
@@ -349,9 +445,11 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
           }}
           onWheel={(event) => {
             event.evt.preventDefault();
+            if (paused) return;
             applyZoom(settings.zoom * (event.evt.deltaY > 0 ? 0.94 : 1.06));
           }}
           onTouchMove={(event) => {
+            if (paused) return;
             const touches = event.evt.touches;
             if (touches.length !== 2) return;
             event.evt.preventDefault();
@@ -381,7 +479,19 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
               height={STORY_HEIGHT}
               fill="#11100f"
             />
-            {settings.mode === "fit" ? (
+            {abstractBackdrop ? (
+              <Shape
+                listening={false}
+                perfectDrawEnabled={false}
+                sceneFunc={(context) =>
+                  painter?.draw(
+                    context._context,
+                    settings.backdrop,
+                    backdropPhaseRef.current,
+                  )
+                }
+              />
+            ) : settings.mode === "fit" ? (
               <KonvaImage
                 ref={backgroundRef}
                 image={image}
@@ -405,7 +515,7 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
               y={foregroundRect.y}
               width={foregroundRect.width}
               height={foregroundRect.height}
-              draggable
+              draggable={!paused}
               perfectDrawEnabled={false}
               onDragMove={(event) =>
                 updatePanFromNode(event.target as Konva.Image)
@@ -487,6 +597,14 @@ export const StoryCanvas = forwardRef<StoryCanvasHandle, StoryCanvasProps>(
             />
           </Layer>
         </Stage>
+        {backdropError ? (
+          <div
+            role="alert"
+            className="absolute inset-x-4 bottom-4 rounded-lg bg-background p-3 text-sm text-foreground"
+          >
+            {backdropError}
+          </div>
+        ) : null}
       </div>
     );
   },
