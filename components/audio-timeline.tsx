@@ -252,7 +252,8 @@ export function AudioTimeline({
         <div className="flex flex-col gap-1">
           <FieldLabel htmlFor="audio-range">Audio selection</FieldLabel>
           <FieldDescription>
-            Drag both handles. There is no imposed duration limit.
+            Drag the handles to choose which part of the song plays. Your story
+            runs exactly this long.
           </FieldDescription>
         </div>
         <span className="studio-value shrink-0 tabular-nums">
@@ -366,6 +367,9 @@ export function AudioTimeline({
               }
             />
           </FieldGroup>
+          <FieldDescription>
+            Type exact times in seconds (65.5) or minutes:seconds (1:05.5).
+          </FieldDescription>
         </div>
       </div>
 

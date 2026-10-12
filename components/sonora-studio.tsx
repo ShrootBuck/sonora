@@ -32,12 +32,21 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  AudioTimeline,
-  formatTime,
-  parseTime,
-} from "@/components/audio-timeline";
+import { AudioTimeline, formatTime } from "@/components/audio-timeline";
 import { BackdropControls } from "@/components/backdrop-controls";
+import {
+  AspectArt,
+  CarouselArt,
+  FramingArt,
+  LayoutArt,
+  MotionArt,
+  ReactionArt,
+  SpanArt,
+  TransitionArt,
+  TreatmentArt,
+  TypeArt,
+} from "@/components/option-art";
+import { Amount, Choice, TimeField } from "@/components/studio-fields";
 import { StudioPreview } from "@/components/studio-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +72,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { extractPhotoColors, extractPhotoField } from "@/lib/media/backdrop";
 import { loadImageFile } from "@/lib/media/load-image";
 import { type AudioAnalysis, analyzeAudio } from "@/lib/studio/audio";
@@ -84,124 +98,28 @@ import {
   updateCut,
   type Variant,
 } from "@/lib/studio/model";
+import {
+  CAROUSEL_MODES,
+  FRAMINGS,
+  MODES,
+  MOTIONS,
+  PAPER_COLORS,
+  PLACEMENTS,
+  REACTIONS,
+  SPANS,
+  TEASER_FORMATS,
+  TRANSITIONS,
+  TREATMENTS,
+  TYPEFACES,
+  VARIANTS,
+} from "@/lib/studio/options";
 import { cn } from "@/lib/utils";
 
-function Choice<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <ToggleGroup
-        aria-label={label}
-        value={[value]}
-        onValueChange={(v) => {
-          if (v[0]) onChange(v[0] as T);
-        }}
-        variant="outline"
-        spacing={1}
-        className={cn(
-          "w-full",
-          options.length > 5 ? "grid grid-cols-3" : "flex flex-wrap",
-        )}
-      >
-        {options.map((o) => (
-          <ToggleGroupItem key={o.value} value={o.value} className="flex-1">
-            {o.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </Field>
-  );
-}
-function Amount({
-  label,
-  value,
-  min = 0,
-  max = 100,
-  step = 1,
-  suffix = "",
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min?: number;
-  max?: number;
-  step?: number;
-  suffix?: string;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <Field>
-      <div className="flex items-center justify-between gap-2">
-        <FieldLabel>{label}</FieldLabel>
-        <span className="studio-value">
-          {Number(value.toFixed(2))}
-          {suffix}
-        </span>
-      </div>
-      <Slider
-        aria-label={label}
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onValueChange={(n) => {
-          if (typeof n === "number") onChange(n);
-        }}
-      />
-    </Field>
-  );
-}
-function TimeField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (n: number) => void;
-}) {
-  const [text, setText] = useState(formatTime(value));
-  useEffect(() => {
-    setText(formatTime(value));
-  }, [value]);
-  return (
-    <Field>
-      <FieldLabel>{label}</FieldLabel>
-      <Input
-        aria-label={label}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => {
-          const n = parseTime(text);
-          if (n !== null && n >= 0) onChange(n);
-          else setText(formatTime(value));
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-      />
-    </Field>
-  );
-}
-const MOTIONS = [
-  { value: "none", label: "Still" },
-  { value: "zoomin", label: "Zoom in" },
-  { value: "zoomout", label: "Zoom out" },
-  { value: "breathe", label: "Breathe" },
-  { value: "drift", label: "Drift" },
-  { value: "pulse", label: "Pulse" },
-  { value: "sway", label: "Sway" },
-] as const;
+const MODE_ICONS = {
+  post: ImagePlusIcon,
+  carousel: ImagesIcon,
+  story: FilmIcon,
+};
 
 export function SonoraStudio() {
   const [project, setProject] = useState<Project>(INITIAL_PROJECT);
@@ -520,15 +438,22 @@ export function SonoraStudio() {
           className="segmented segmented-hot"
           disabled={working}
         >
-          <ToggleGroupItem value="post">
-            <ImagePlusIcon /> Post
-          </ToggleGroupItem>
-          <ToggleGroupItem value="carousel">
-            <ImagesIcon /> Carousel
-          </ToggleGroupItem>
-          <ToggleGroupItem value="story">
-            <FilmIcon /> Story
-          </ToggleGroupItem>
+          {MODES.map((mode) => {
+            const Icon = MODE_ICONS[mode.value];
+            return (
+              <Tooltip key={mode.value}>
+                <ToggleGroupItem
+                  value={mode.value}
+                  render={<TooltipTrigger delay={350} />}
+                >
+                  <Icon /> {mode.label}
+                </ToggleGroupItem>
+                <TooltipContent side="bottom">
+                  {mode.description}
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </ToggleGroup>
         <Badge
           variant="outline"
@@ -595,20 +520,37 @@ export function SonoraStudio() {
                 size="sm"
                 className="segmented"
               >
-                <ToggleGroupItem value="main">Composition</ToggleGroupItem>
-                <ToggleGroupItem value="teaser">Story teaser</ToggleGroupItem>
-                <ToggleGroupItem value="cover">Cover</ToggleGroupItem>
+                {VARIANTS.map((v) => (
+                  <Tooltip key={v.value}>
+                    <ToggleGroupItem
+                      value={v.value}
+                      render={<TooltipTrigger delay={350} />}
+                    >
+                      {v.label}
+                    </ToggleGroupItem>
+                    <TooltipContent side="bottom">
+                      {v.description}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
               </ToggleGroup>
-              <Toggle
-                aria-label="Show Instagram guides"
-                pressed={guides}
-                onPressedChange={setGuides}
-                size="sm"
-                className="studio-chip"
-              >
-                <ScanIcon data-icon="inline-start" />
-                <span className="studio-chip-label">Guides</span>
-              </Toggle>
+              <Tooltip>
+                <Toggle
+                  aria-label="Show Instagram guides"
+                  pressed={guides}
+                  onPressedChange={setGuides}
+                  size="sm"
+                  className="studio-chip"
+                  render={<TooltipTrigger delay={350} />}
+                >
+                  <ScanIcon data-icon="inline-start" />
+                  <span className="studio-chip-label">Guides</span>
+                </Toggle>
+                <TooltipContent side="bottom">
+                  Shows roughly where Instagram's buttons and captions cover
+                  your image. Never included in downloads.
+                </TooltipContent>
+              </Tooltip>
             </div>
             {photos.length ? (
               <StudioPreview
@@ -753,6 +695,12 @@ export function SonoraStudio() {
               </p>
             </div>
           ) : null}
+          {project.mode === "post" && variant === "main" && pages > 1 ? (
+            <p className="px-6 pb-3 text-center text-xs text-muted-foreground">
+              A post is one image, so only the photos shown here are exported.
+              Switch to Carousel to export every page.
+            </p>
+          ) : null}
           {guides ? (
             <p className="px-6 pb-3 text-center text-xs text-muted-foreground">
               Approximate Instagram overlays. Guides never appear in your
@@ -878,6 +826,12 @@ export function SonoraStudio() {
                 </Button>
               </div>
             ) : null}
+            {photos.length > 1 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Layouts fill up with photos in this order. Drag a thumbnail or
+                use the arrows to reorder.
+              </p>
+            ) : null}
           </div>
           {project.mode === "story" && photos.length > 0 ? (
             <div className="studio-timeline">
@@ -925,6 +879,10 @@ export function SonoraStudio() {
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground">
+                Each block is a scene: the photos on screen together. Tap one to
+                jump there, or set exact times under Sound & motion.
+              </p>
             </div>
           ) : null}
         </section>
@@ -961,8 +919,11 @@ export function SonoraStudio() {
                             : "Matching cover"}
                         </AlertTitle>
                         <AlertDescription>
-                          Adjust this version's layout and framing. Colors and
-                          typography stay connected to your main composition.
+                          {variant === "teaser"
+                            ? "A 9:16 story that points people to your post."
+                            : "A single still in your post shape, for a first slide or grid cover."}{" "}
+                          Change its layout, size, and text position here.
+                          Colors and type stay linked to your main composition.
                         </AlertDescription>
                       </Alert>
                     ) : null}
@@ -971,6 +932,15 @@ export function SonoraStudio() {
                         label="Canvas"
                         value={project.aspect}
                         options={ASPECTS}
+                        art={(aspect) => (
+                          <AspectArt
+                            height={
+                              ASPECTS.find((a) => a.value === aspect)?.height ??
+                              1350
+                            }
+                          />
+                        )}
+                        columns={5}
                         onChange={(aspect) => change({ aspect })}
                       />
                     ) : null}
@@ -978,10 +948,11 @@ export function SonoraStudio() {
                       <Choice
                         label="Carousel"
                         value={project.connected ? "connected" : "individual"}
-                        options={[
-                          { value: "individual", label: "Individual slides" },
-                          { value: "connected", label: "Connected strip" },
-                        ]}
+                        options={CAROUSEL_MODES}
+                        art={(v) => (
+                          <CarouselArt connected={v === "connected"} />
+                        )}
+                        columns={2}
                         onChange={(v) => {
                           change({ connected: v === "connected" });
                           setPage(0);
@@ -999,6 +970,9 @@ export function SonoraStudio() {
                             : project[variant].layout
                         }
                         options={LAYOUTS}
+                        art={(layout) => (
+                          <LayoutArt layout={layout} height={size.height} />
+                        )}
                         onChange={(layout) =>
                           variant === "main"
                             ? change({ layout, cuts: [] })
@@ -1017,6 +991,7 @@ export function SonoraStudio() {
                     {variant !== "main" ? (
                       <Amount
                         label="Composition size"
+                        hint="Shrinks the whole layout to leave more background around it."
                         value={project[variant].scale * 100}
                         min={30}
                         suffix="%"
@@ -1030,14 +1005,25 @@ export function SonoraStudio() {
                     <Choice
                       label="Treatment"
                       value={project.treatment}
-                      options={[
-                        { value: "clean", label: "Full bleed" },
-                        { value: "border", label: "Paper" },
-                        { value: "film", label: "Film" },
-                        { value: "color", label: "Color" },
-                      ]}
+                      options={TREATMENTS}
+                      art={(treatment) => (
+                        <TreatmentArt
+                          treatment={treatment}
+                          color={photo?.colors[0] ?? project.background}
+                        />
+                      )}
+                      columns={4}
                       onChange={(treatment) => {
-                        change({ treatment });
+                        change({
+                          treatment,
+                          ...(treatment === "border" ? PAPER_COLORS : {}),
+                          ...(treatment === "color" && photo
+                            ? {
+                                background: photo.colors[0],
+                                ink: photo.colors[2],
+                              }
+                            : {}),
+                        });
                         if (treatment === "clean")
                           setPhotos((items) =>
                             items.map((p) => ({
@@ -1053,36 +1039,46 @@ export function SonoraStudio() {
                     {project.treatment !== "clean" ? (
                       <Amount
                         label="Spacing"
+                        hint="Space between photos and around the edges of the frame."
                         value={project.gap}
                         max={120}
                         suffix=" px"
                         onChange={(gap) => change({ gap })}
                       />
                     ) : null}
-                    <div className="flex gap-4">
-                      <Field>
-                        <FieldLabel htmlFor="paper-color">
-                          Background
-                        </FieldLabel>
-                        <Input
-                          id="paper-color"
-                          type="color"
-                          value={project.background}
-                          onChange={(e) =>
-                            change({ background: e.target.value })
-                          }
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="type-color">Text</FieldLabel>
-                        <Input
-                          id="type-color"
-                          type="color"
-                          value={project.ink}
-                          onChange={(e) => change({ ink: e.target.value })}
-                        />
-                      </Field>
-                    </div>
+                    <Field>
+                      <div className="flex gap-4">
+                        <Field>
+                          <FieldLabel htmlFor="paper-color">
+                            Background
+                          </FieldLabel>
+                          <Input
+                            id="paper-color"
+                            type="color"
+                            value={project.background}
+                            onChange={(e) =>
+                              change({ background: e.target.value })
+                            }
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="type-color">Text</FieldLabel>
+                          <Input
+                            id="type-color"
+                            type="color"
+                            value={project.ink}
+                            onChange={(e) => change({ ink: e.target.value })}
+                          />
+                        </Field>
+                      </div>
+                      <FieldDescription>
+                        {project.treatment === "film"
+                          ? "Film always uses its dark mat and light text, so these colors don't apply while it's on."
+                          : project.atmospheric
+                            ? "Your atmospheric backdrop covers the background color. Text colors the title and small print."
+                            : "Background is the mat behind your photos. Text colors the title and small print."}
+                      </FieldDescription>
+                    </Field>
                     {photo ? (
                       <Button
                         variant="outline"
@@ -1108,6 +1104,10 @@ export function SonoraStudio() {
                         value={project.title}
                         onChange={(e) => change({ title: e.target.value })}
                       />
+                      <FieldDescription>
+                        Big text on every slide. Adding text shrinks the photos
+                        a little to make room for it.
+                      </FieldDescription>
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="studio-subtitle">
@@ -1119,21 +1119,22 @@ export function SonoraStudio() {
                         value={project.subtitle}
                         onChange={(e) => change({ subtitle: e.target.value })}
                       />
+                      <FieldDescription>
+                        A smaller line under the title, like a date or a place.
+                      </FieldDescription>
                     </Field>
                     {project.title || project.subtitle ? (
                       <>
                         <Choice
                           label="Typography"
                           value={project.typeface}
-                          options={[
-                            { value: "sans", label: "Modern" },
-                            { value: "serif", label: "Editorial" },
-                            { value: "mono", label: "Typewriter" },
-                          ]}
+                          options={TYPEFACES}
+                          art={(typeface) => <TypeArt typeface={typeface} />}
                           onChange={(typeface) => change({ typeface })}
                         />
                         <Amount
                           label="Title size"
+                          hint="Small print scales along with the title."
                           value={project.titleSize}
                           min={24}
                           max={160}
@@ -1142,6 +1143,7 @@ export function SonoraStudio() {
                         />
                         <Amount
                           label="Text position"
+                          hint="How far down the frame the text sits. 0% is the very top."
                           value={Math.round(
                             (variant === "main"
                               ? project.titleY
@@ -1163,15 +1165,21 @@ export function SonoraStudio() {
                         {project.connected &&
                         project.mode === "carousel" &&
                         variant === "main" ? (
-                          <Toggle
-                            pressed={project.titleAcross}
-                            onPressedChange={(titleAcross) =>
-                              change({ titleAcross })
-                            }
-                            variant="outline"
-                          >
-                            Let the title cross the first seam
-                          </Toggle>
+                          <Field>
+                            <Toggle
+                              pressed={project.titleAcross}
+                              onPressedChange={(titleAcross) =>
+                                change({ titleAcross })
+                              }
+                              variant="outline"
+                            >
+                              Let the title cross the first seam
+                            </Toggle>
+                            <FieldDescription>
+                              Centers the title on the line between slides 1 and
+                              2, so it carries across the swipe.
+                            </FieldDescription>
+                          </Field>
                         ) : null}
                       </>
                     ) : null}
@@ -1202,19 +1210,27 @@ export function SonoraStudio() {
                           Reset framing
                         </Button>
                       </div>
+                      <FieldDescription className="-mt-3">
+                        Framing changes this photo only. Tap another thumbnail
+                        in your collection to edit it.
+                      </FieldDescription>
                       <Choice
                         label="Framing"
                         value={photo.fit}
-                        options={[
-                          { value: "fit", label: "Fit · whole photo" },
-                          { value: "fill", label: "Fill · crop" },
-                        ]}
+                        options={FRAMINGS}
+                        art={(fit) => <FramingArt fit={fit} />}
+                        columns={2}
                         onChange={(fit) =>
                           movePhoto(photo.id, { fit, scale: 1, x: 0, y: 0 })
                         }
                       />
                       <Amount
                         label="Photo size"
+                        hint={
+                          photo.fit === "fit"
+                            ? "Shrinks the photo inside its slot. At 100% it touches the slot's edges."
+                            : "Zooms in past the edges. At 100% it just covers the slot."
+                        }
                         value={Math.round(photo.scale * 100)}
                         min={photo.fit === "fit" ? 30 : 100}
                         max={photo.fit === "fit" ? 100 : 300}
@@ -1231,6 +1247,7 @@ export function SonoraStudio() {
                       />
                       <Amount
                         label="Vertical position"
+                        hint="Slides the photo inside its slot, or drag it in the preview. A photo that already touches both edges in one direction can't move that way."
                         value={Math.round(photo.y * 100)}
                         min={-100}
                         onChange={(n) => movePhoto(photo.id, { y: n / 100 })}
@@ -1244,54 +1261,50 @@ export function SonoraStudio() {
                               ? "lower"
                               : "center"
                         }
-                        options={[
-                          { value: "upper", label: "Upper" },
-                          { value: "center", label: "Center" },
-                          { value: "lower", label: "Lower" },
-                        ]}
+                        options={PLACEMENTS}
                         onChange={(v) =>
                           movePhoto(photo.id, {
                             y: v === "upper" ? -1 : v === "lower" ? 1 : 0,
                           })
                         }
                       />
-                      <FieldDescription>
-                        Drag the photo in the preview, or use the positioning
-                        controls. Fit keeps every edge visible.
-                      </FieldDescription>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          setPhotos((items) =>
-                            items.map((p) => ({
-                              ...p,
-                              fit: photo.fit,
-                              scale: photo.scale,
-                              x: photo.x,
-                              y: photo.y,
-                            })),
-                          )
-                        }
-                      >
-                        Apply framing to all photos
-                      </Button>
+                      <Field>
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            setPhotos((items) =>
+                              items.map((p) => ({
+                                ...p,
+                                fit: photo.fit,
+                                scale: photo.scale,
+                                x: photo.x,
+                                y: photo.y,
+                              })),
+                            )
+                          }
+                        >
+                          Apply framing to all photos
+                        </Button>
+                        <FieldDescription>
+                          Copies this photo's Fit or Fill, size, and position to
+                          every photo.
+                        </FieldDescription>
+                      </Field>
                       {project.connected && project.mode === "carousel" ? (
                         <>
                           <Separator />
                           <Choice
                             label="Photo spans"
-                            value={String(photo.span)}
-                            options={[
-                              { value: "1", label: "1 slide" },
-                              { value: "2", label: "2 slides" },
-                              { value: "3", label: "3 slides" },
-                            ]}
+                            value={String(photo.span) as "1" | "2" | "3"}
+                            options={SPANS}
+                            art={(v) => <SpanArt span={Number(v)} />}
                             onChange={(v) =>
                               movePhoto(photo.id, { span: Number(v) })
                             }
                           />
                           <Amount
                             label="Shift across the seam"
+                            hint="Slides the photo sideways, up to half a slide, so it straddles the cut between two slides."
                             value={Math.round(photo.shift * 100)}
                             min={-50}
                             max={50}
@@ -1302,6 +1315,7 @@ export function SonoraStudio() {
                           />
                           <Amount
                             label="Print angle"
+                            hint="Tilts the photo like a print tossed on a table."
                             value={photo.rotation}
                             min={-15}
                             max={15}
@@ -1313,16 +1327,23 @@ export function SonoraStudio() {
                         </>
                       ) : null}
                       <Separator />
-                      <Toggle
-                        pressed={project.atmospheric}
-                        onPressedChange={(atmospheric) =>
-                          change({ atmospheric })
-                        }
-                        variant="outline"
-                      >
-                        <SparklesIcon data-icon="inline-start" />
-                        Atmospheric backdrop
-                      </Toggle>
+                      <Field>
+                        <Toggle
+                          pressed={project.atmospheric}
+                          onPressedChange={(atmospheric) =>
+                            change({ atmospheric })
+                          }
+                          variant="outline"
+                        >
+                          <SparklesIcon data-icon="inline-start" />
+                          Atmospheric backdrop
+                        </Toggle>
+                        <FieldDescription>
+                          Fills the space behind your photos with artwork made
+                          from them, instead of a flat color. Applies to every
+                          slide.
+                        </FieldDescription>
+                      </Field>
                       {project.atmospheric ? (
                         <BackdropControls
                           settings={{
@@ -1385,6 +1406,12 @@ export function SonoraStudio() {
                         </Button>
                       ) : null}
                     </div>
+                    {!audio ? (
+                      <FieldDescription className="-mt-3">
+                        Pick a song or sound from your device. The story plays
+                        the part you select, and it never leaves your device.
+                      </FieldDescription>
+                    ) : null}
                     {audioLoading ? (
                       <p className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Spinner />
@@ -1414,6 +1441,7 @@ export function SonoraStudio() {
                     ) : (
                       <TimeField
                         label="Story duration"
+                        hint="How long the video runs. Type seconds (12) or minutes:seconds (1:05.5)."
                         value={project.duration}
                         onChange={(n) => {
                           if (n > 0) change({ duration: n });
@@ -1424,16 +1452,16 @@ export function SonoraStudio() {
                     <Choice
                       label="Transition"
                       value={project.transition}
-                      options={[
-                        { value: "cut", label: "Cut" },
-                        { value: "fade", label: "Dissolve" },
-                        { value: "slide", label: "Slide" },
-                      ]}
+                      options={TRANSITIONS}
+                      art={(transition) => (
+                        <TransitionArt transition={transition} />
+                      )}
                       onChange={(transition) => change({ transition })}
                     />
                     {project.transition !== "cut" ? (
                       <Amount
                         label="Transition length"
+                        hint="How long each change between scenes takes."
                         value={project.transitionSeconds}
                         min={0.05}
                         max={2}
@@ -1444,22 +1472,32 @@ export function SonoraStudio() {
                         }
                       />
                     ) : null}
-                    <Toggle
-                      pressed={project.reveal}
-                      onPressedChange={(reveal) => change({ reveal })}
-                      variant="outline"
-                    >
-                      Reveal collage photos in sequence
-                    </Toggle>
+                    <Field>
+                      <Toggle
+                        pressed={project.reveal}
+                        onPressedChange={(reveal) => change({ reveal })}
+                        variant="outline"
+                      >
+                        Reveal collage photos in sequence
+                      </Toggle>
+                      <FieldDescription>
+                        In layouts with several photos, each one fades up into
+                        place after the last instead of all at once.
+                      </FieldDescription>
+                    </Field>
                     <Choice
                       label="Camera motion"
                       value={project.motion}
                       options={MOTIONS}
+                      art={(motion) => <MotionArt motion={motion} />}
+                      columns={4}
+                      hint="Moves Fill photos and the Photo blur backdrop. Fit photos stay put so no edge gets cropped, and other backdrops have their own animation."
                       onChange={(motion) => change({ motion })}
                     />
                     {project.motion !== "none" ? (
                       <Amount
                         label="Motion intensity"
+                        hint="How far the camera moves."
                         value={project.motionStrength}
                         suffix="%"
                         onChange={(motionStrength) =>
@@ -1467,13 +1505,10 @@ export function SonoraStudio() {
                         }
                       />
                     ) : null}
-                    <FieldDescription>
-                      Camera motion applies to Fill photos and Photo blur.
-                      Abstract backdrops move independently of your sharp photo.
-                    </FieldDescription>
                     <Separator />
                     <Amount
                       label="Music reactivity"
+                      hint="How strongly the backdrop pulses with your music. Turning it up also switches on the atmospheric backdrop."
                       value={project.reactive}
                       suffix="%"
                       onChange={(reactive) =>
@@ -1484,61 +1519,69 @@ export function SonoraStudio() {
                       }
                     />
                     {project.reactive > 0 ? (
-                      <>
-                        <Choice
-                          label="React to"
-                          value={project.reaction}
-                          options={[
-                            { value: "bass", label: "Bass" },
-                            { value: "percussion", label: "Percussion" },
-                            { value: "energy", label: "Energy" },
-                          ]}
-                          onChange={(reaction) => change({ reaction })}
-                        />
-                        <FieldDescription>
-                          {analysis
-                            ? "The backdrop follows your audio. Lower values keep the response subtle."
-                            : "Add an audio file to drive the background with real sound."}
-                        </FieldDescription>
-                      </>
+                      <Choice
+                        label="React to"
+                        value={project.reaction}
+                        options={REACTIONS}
+                        art={(reaction) => <ReactionArt reaction={reaction} />}
+                        hint={
+                          analysis
+                            ? undefined
+                            : "Add an audio file to drive the backdrop with real sound."
+                        }
+                        onChange={(reaction) => change({ reaction })}
+                      />
                     ) : null}
                     {scenes > 1 ? (
                       <>
                         <Separator />
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium">
-                            Photo timing
-                          </span>
+                        <Field>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">
+                              Photo timing
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => change({ cuts: [] })}
+                            >
+                              Even spacing
+                            </Button>
+                          </div>
+                          <FieldDescription>
+                            A scene is the group of photos on screen together.
+                            Your layout decides how many share one.
+                          </FieldDescription>
+                        </Field>
+                        <Field>
                           <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => change({ cuts: [] })}
+                            variant="outline"
+                            disabled={!analysis?.beats.length || duration <= 0}
+                            onClick={() => {
+                              if (analysis)
+                                change({
+                                  cuts: snapCutsToBeats(
+                                    project,
+                                    scenes,
+                                    analysis.beats,
+                                    selection[0],
+                                    duration,
+                                  ),
+                                });
+                            }}
                           >
-                            Even spacing
+                            <AudioLinesIcon data-icon="inline-start" />
+                            Snap changes to detected beats
                           </Button>
-                        </div>
-                        <Button
-                          variant="outline"
-                          disabled={!analysis?.beats.length || duration <= 0}
-                          onClick={() => {
-                            if (analysis)
-                              change({
-                                cuts: snapCutsToBeats(
-                                  project,
-                                  scenes,
-                                  analysis.beats,
-                                  selection[0],
-                                  duration,
-                                ),
-                              });
-                          }}
-                        >
-                          <AudioLinesIcon data-icon="inline-start" />
-                          Snap changes to detected beats
-                        </Button>
+                          <FieldDescription>
+                            {analysis?.beats.length
+                              ? "Moves each scene change to the nearest beat Sonora heard in your song."
+                              : "Add audio with a clear beat to line scene changes up with it."}
+                          </FieldDescription>
+                        </Field>
                         <FieldDescription>
-                          Times are relative to the start of your selected
-                          audio. Fine-tune any change below.
+                          Times count from the start of the story. Type seconds
+                          (4.5) or minutes:seconds (0:04.5).
                         </FieldDescription>
                         {cuts.slice(1, -1).map((cut, i) => (
                           <TimeField
@@ -1600,16 +1643,14 @@ export function SonoraStudio() {
               </summary>
               <div className="flex flex-col gap-3">
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  All your slides, a cover, and a story teaser in one download.
-                  Use the preview tabs to adjust each version.
+                  All your slides, a cover, and a story teaser in one ZIP, so
+                  your feed post and story match. Use Composition, Story teaser,
+                  and Cover above the preview to adjust each version.
                 </p>
                 <Choice
                   label="Story teaser"
                   value={animatedSet ? "video" : "image"}
-                  options={[
-                    { value: "video", label: "Animated video" },
-                    { value: "image", label: "Still image" },
-                  ]}
+                  options={TEASER_FORMATS}
                   onChange={(v) => setAnimatedSet(v === "video")}
                 />
                 <Button

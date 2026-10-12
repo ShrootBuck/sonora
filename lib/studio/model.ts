@@ -90,20 +90,97 @@ export const INITIAL_PROJECT: Project = {
   cover: { layout: "single", scale: 0.9, titleY: 0.82 },
 };
 
-export const LAYOUTS: { value: Layout; label: string; count: number }[] = [
-  { value: "single", label: "Single", count: 1 },
-  { value: "diptych", label: "Diptych", count: 2 },
-  { value: "triptych", label: "Filmstrip", count: 3 },
-  { value: "contact", label: "Contact sheet", count: 6 },
-  { value: "editorial", label: "Editorial", count: 3 },
-  { value: "prints", label: "Prints", count: 3 },
+export const LAYOUTS: {
+  value: Layout;
+  label: string;
+  count: number;
+  description: string;
+}[] = [
+  {
+    value: "single",
+    label: "Single",
+    count: 1,
+    description: "One photo at a time, with room to breathe.",
+  },
+  {
+    value: "diptych",
+    label: "Diptych",
+    count: 2,
+    description: "Two photos side by side, like a pair of hinged frames.",
+  },
+  {
+    value: "triptych",
+    label: "Filmstrip",
+    count: 3,
+    description:
+      "Three wide photos stacked top to bottom, like a strip of film.",
+  },
+  {
+    value: "contact",
+    label: "Contact sheet",
+    count: 6,
+    description:
+      "Six small photos in a grid, like a photographer's proof sheet.",
+  },
+  {
+    value: "editorial",
+    label: "Editorial",
+    count: 3,
+    description:
+      "One big photo on top and two smaller ones below, like a magazine page.",
+  },
+  {
+    value: "prints",
+    label: "Prints",
+    count: 3,
+    description:
+      "Three tilted prints overlapping, like snapshots tossed on a table.",
+  },
 ];
-export const ASPECTS: { value: Aspect; label: string; height: number }[] = [
-  { value: "portrait", label: "4:5", height: 1350 },
-  { value: "tall", label: "3:4", height: 1440 },
-  { value: "square", label: "1:1", height: 1080 },
-  { value: "landscape", label: "16:9", height: 608 },
-  { value: "story", label: "9:16", height: 1920 },
+export const ASPECTS: {
+  value: Aspect;
+  label: string;
+  height: number;
+  title: string;
+  description: string;
+}[] = [
+  {
+    value: "portrait",
+    label: "4:5",
+    height: 1350,
+    title: "4:5 Portrait",
+    description: "Instagram's standard tall post. A safe pick for any dump.",
+  },
+  {
+    value: "tall",
+    label: "3:4",
+    height: 1440,
+    title: "3:4 Tall",
+    description:
+      "A little taller than 4:5, about the shape of your profile grid tiles.",
+  },
+  {
+    value: "square",
+    label: "1:1",
+    height: 1080,
+    title: "1:1 Square",
+    description: "The original Instagram square. Takes less room in the feed.",
+  },
+  {
+    value: "landscape",
+    label: "16:9",
+    height: 608,
+    title: "16:9 Wide",
+    description: "Widescreen, for landscapes. Shows up small in the feed.",
+  },
+  {
+    value: "story",
+    label: "9:16",
+    height: 1920,
+    title: "9:16 Full screen",
+    description:
+      "Phone-screen tall, the same shape as a Story. The feed may crop it.",
+  },
 ];
 export const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));

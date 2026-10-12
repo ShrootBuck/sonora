@@ -2,6 +2,7 @@
 
 import { ShuffleIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { Amount, Choice } from "@/components/studio-fields";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -10,7 +11,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   BACKDROP_PALETTES,
@@ -24,7 +24,6 @@ import {
 import {
   type BackdropColors,
   type BackdropSettings,
-  type BackdropStyle,
   type MotionSpeed,
   STORY_HEIGHT,
   STORY_WIDTH,
@@ -97,40 +96,6 @@ function BackdropSwatch({
   );
 }
 
-function Amount({
-  id,
-  label,
-  value,
-  onChange,
-  max = 100,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-  max?: number;
-}) {
-  return (
-    <Field>
-      <div className="flex items-center justify-between gap-2">
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <span className="studio-value">{value}%</span>
-      </div>
-      <Slider
-        id={id}
-        aria-label={label}
-        min={0}
-        max={max}
-        step={1}
-        value={value}
-        onValueChange={(next) => {
-          if (typeof next === "number") onChange(next);
-        }}
-      />
-    </Field>
-  );
-}
-
 export function BackdropControls({
   settings,
   image,
@@ -147,42 +112,17 @@ export function BackdropControls({
     onChange({ ...settings, ...patch });
   return (
     <FieldGroup>
-      <Field>
-        <FieldLabel id="backdrop-style-label">Backdrop</FieldLabel>
-        <ToggleGroup
-          aria-labelledby="backdrop-style-label"
-          value={[settings.style]}
-          variant="outline"
-          className="grid w-full grid-cols-3 gap-2"
-          onValueChange={(values) => {
-            if (values[0])
-              change({
-                style: values[0] as BackdropStyle,
-                ...(values[0] === "grain" ? { grain: 45 } : {}),
-              });
-          }}
-        >
-          {BACKDROP_STYLES.map((style) => (
-            <ToggleGroupItem
-              key={style.value}
-              value={style.value}
-              className="h-auto min-w-0 flex-col gap-2 p-2"
-            >
-              <BackdropSwatch
-                image={image}
-                settings={{ ...resolved, style: style.value }}
-              />
-              {style.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <FieldDescription>
-          {
-            BACKDROP_STYLES.find((style) => style.value === settings.style)
-              ?.description
-          }
-        </FieldDescription>
-      </Field>
+      <Choice
+        label="Backdrop"
+        value={settings.style}
+        options={BACKDROP_STYLES}
+        art={(style) => (
+          <BackdropSwatch image={image} settings={{ ...resolved, style }} />
+        )}
+        onChange={(style) =>
+          change({ style, ...(style === "grain" ? { grain: 45 } : {}) })
+        }
+      />
       {settings.style !== "photo" ? (
         <>
           <Field>
@@ -219,8 +159,8 @@ export function BackdropControls({
               ) : null}
             </ToggleGroup>
             <FieldDescription>
-              From photo uses your image’s own colors. Other palettes are
-              optional.
+              From photo uses your image’s own colors. The others are preset
+              palettes you can swap in.
             </FieldDescription>
           </Field>
           {settings.style === "melt" && settings.palette === "photo" ? (
@@ -229,25 +169,31 @@ export function BackdropControls({
               soft textures. Choose a palette to recolor it.
             </FieldDescription>
           ) : (
-            <FieldGroup className="grid grid-cols-3 gap-3">
-              {(["Base", "Color", "Accent"] as const).map((label, index) => (
-                <Field key={label}>
-                  <FieldLabel htmlFor={`backdrop-color-${index}`}>
-                    {label}
-                  </FieldLabel>
-                  <Input
-                    type="color"
-                    id={`backdrop-color-${index}`}
-                    value={resolved.colors[index]}
-                    onChange={(event) => {
-                      const colors: BackdropColors = [...resolved.colors];
-                      colors[index] = event.target.value;
-                      change({ palette: "custom", colors });
-                    }}
-                  />
-                </Field>
-              ))}
-            </FieldGroup>
+            <Field>
+              <FieldGroup className="grid grid-cols-3 gap-3">
+                {(["Base", "Color", "Accent"] as const).map((label, index) => (
+                  <Field key={label}>
+                    <FieldLabel htmlFor={`backdrop-color-${index}`}>
+                      {label}
+                    </FieldLabel>
+                    <Input
+                      type="color"
+                      id={`backdrop-color-${index}`}
+                      value={resolved.colors[index]}
+                      onChange={(event) => {
+                        const colors: BackdropColors = [...resolved.colors];
+                        colors[index] = event.target.value;
+                        change({ palette: "custom", colors });
+                      }}
+                    />
+                  </Field>
+                ))}
+              </FieldGroup>
+              <FieldDescription>
+                Base is the main backdrop color. Color and Accent swirl in on
+                top. Editing any of them makes a Custom palette.
+              </FieldDescription>
+            </Field>
           )}
           {settings.style !== "solid" ? (
             <>
@@ -270,7 +216,9 @@ export function BackdropControls({
                   </ToggleGroup>
                 </div>
                 <FieldDescription>
-                  Only the backdrop moves. Your whole photo stays sharp.
+                  {settings.animated
+                    ? "The backdrop moves in a seamless loop. Your photos stay sharp and still."
+                    : "The backdrop stays frozen. Choose Flow to animate it behind your sharp photos."}
                 </FieldDescription>
               </Field>
               {settings.animated ? (
@@ -292,19 +240,29 @@ export function BackdropControls({
                       <ToggleGroupItem value="fast">Fast</ToggleGroupItem>
                     </ToggleGroup>
                   </div>
+                  <FieldDescription>
+                    {settings.speed === "slow"
+                      ? "Slow loops every 8 seconds."
+                      : settings.speed === "fast"
+                        ? "Fast loops every 4 seconds."
+                        : "Normal loops every 6 seconds."}{" "}
+                    Looping camera moves use the same pace.
+                  </FieldDescription>
                 </Field>
               ) : null}
               <FieldGroup className="grid gap-5 sm:grid-cols-2">
                 <Amount
-                  id="backdrop-intensity"
                   label="Intensity"
+                  hint="How strongly the pattern bends and moves."
                   value={settings.intensity}
+                  suffix="%"
                   onChange={(intensity) => change({ intensity })}
                 />
                 <Amount
-                  id="backdrop-detail"
                   label="Detail"
+                  hint="More, smaller shapes as it goes up."
                   value={settings.detail}
+                  suffix="%"
                   onChange={(detail) => change({ detail })}
                 />
               </FieldGroup>
@@ -312,28 +270,35 @@ export function BackdropControls({
           ) : null}
           <FieldGroup className="grid gap-5 sm:grid-cols-2">
             <Amount
-              id="backdrop-grain"
               label="Grain"
+              hint="Adds film-style noise texture."
               value={settings.grain}
+              suffix="%"
               onChange={(grain) => change({ grain })}
             />
             <Amount
-              id="backdrop-dim"
               label="Dim backdrop"
+              hint="Darkens the backdrop so your photos stand out."
               value={settings.dim}
               max={85}
+              suffix="%"
               onChange={(dim) => change({ dim })}
             />
           </FieldGroup>
           {settings.style !== "solid" ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="self-start"
-              onClick={() => change({ seed: settings.seed + 1 })}
-            >
-              <ShuffleIcon data-icon="inline-start" /> Shuffle pattern
-            </Button>
+            <Field>
+              <Button
+                type="button"
+                variant="outline"
+                className="self-start"
+                onClick={() => change({ seed: settings.seed + 1 })}
+              >
+                <ShuffleIcon data-icon="inline-start" /> Shuffle pattern
+              </Button>
+              <FieldDescription>
+                Rearranges the shapes. Colors and settings stay the same.
+              </FieldDescription>
+            </Field>
           ) : null}
         </>
       ) : null}

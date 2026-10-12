@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { BACKDROP_STYLES } from "../lib/media/backdrop";
 import { formatTime, parseTime } from "../lib/media/time";
 import { audioLevel } from "../lib/studio/audio";
 import {
+  ASPECTS,
   capacity,
   dimensions,
   INITIAL_PROJECT,
@@ -15,6 +17,7 @@ import {
   timelineCuts,
   updateCut,
 } from "../lib/studio/model";
+import * as options from "../lib/studio/options";
 
 const slot = { x: 0, y: 0, width: 1080, height: 1350 };
 describe("studio composition contracts", () => {
@@ -72,6 +75,29 @@ describe("studio composition contracts", () => {
     );
     expect(sceneCount({ ...INITIAL_PROJECT, layout: "diptych" }, photos)).toBe(
       2,
+    );
+  });
+  test("every studio choice carries a written explanation", () => {
+    const lists = [
+      LAYOUTS,
+      ASPECTS,
+      BACKDROP_STYLES,
+      ...Object.values(options),
+    ];
+    for (const list of lists) {
+      if (!Array.isArray(list)) continue;
+      const values = list.map((o) => o.value);
+      expect(new Set(values).size).toBe(values.length);
+      for (const option of list) {
+        expect(option.label.length).toBeGreaterThan(0);
+        expect(option.description.length).toBeGreaterThan(10);
+      }
+    }
+    expect(options.MOTIONS.map((m): string => m.value).sort()).toEqual(
+      ["breathe", "drift", "none", "pulse", "sway", "zoomin", "zoomout"].sort(),
+    );
+    expect(options.TREATMENTS.map((t): string => t.value).sort()).toEqual(
+      ["border", "clean", "color", "film"].sort(),
     );
   });
   test("matching covers retain feed dimensions when the main composition is a story", () => {

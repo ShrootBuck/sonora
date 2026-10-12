@@ -654,6 +654,9 @@
 .studio-inspector [data-slot="field-description"] {
   font-size: 12px;
   line-height: 1.6;
+  /* Sliders and toggle groups mark their fields horizontal, which would
+     otherwise balance help text into a narrower column than its neighbors. */
+  text-wrap: pretty;
 }
 .studio-inspector [data-slot="separator"] {
   background: linear-gradient(
@@ -671,6 +674,347 @@
   border-radius: 999px;
   color: var(--foreground);
   background: rgb(255 255 255 / 0.06);
+}
+
+/* ——— Option explanations and visual examples ——— */
+
+/* Two reserved lines keep the controls below still while hover previews
+   swap in explanations of different lengths. */
+.studio-inspector .studio-option-note {
+  min-height: 2lh;
+}
+.studio-option {
+  white-space: normal;
+}
+.studio-option-label {
+  font-size: 11.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+.studio-art-box {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+}
+.studio-art {
+  display: block;
+  overflow: visible;
+}
+.studio-art .art-frame {
+  fill: rgb(255 255 255 / 0.05);
+  stroke: rgb(255 255 255 / 0.22);
+  stroke-width: 1;
+}
+.studio-art .art-outline {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.55);
+  stroke-width: 1;
+}
+.studio-art .art-seam {
+  stroke: rgb(255 255 255 / 0.6);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.studio-art .art-print {
+  fill: #f8f1ea;
+}
+.studio-art .art-ghost {
+  opacity: 0.3;
+}
+.studio-art .art-sky {
+  fill: #3a3239;
+}
+.studio-art .art-land {
+  fill: #5d505b;
+}
+.studio-art .art-sun {
+  fill: #8f818b;
+}
+.studio-art .art-sky,
+.studio-art .art-land,
+.studio-art .art-sun {
+  transition: fill 0.25s;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"]) .art-sky {
+  fill: #6d1f45;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"]) .art-land {
+  fill: var(--hot-1);
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"]) .art-sun {
+  fill: var(--hot-3);
+}
+.studio-option[aria-pressed="true"] .art-frame,
+.studio-option[aria-pressed="true"] .art-outline {
+  stroke: var(--primary);
+}
+.studio-art.art-line path {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.studio-option:is(:hover, :focus-visible) .art-line path {
+  stroke: var(--foreground);
+}
+.studio-option[aria-pressed="true"] .art-line path {
+  stroke: var(--primary);
+}
+.studio-art-type {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--muted-foreground);
+}
+.studio-option:is(:hover, :focus-visible) .studio-art-type {
+  color: var(--foreground);
+}
+.studio-option[aria-pressed="true"] .studio-art-type {
+  background: var(--hot-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Animated thumbnails play while hovered, focused, or selected. */
+.studio-art-clip {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18);
+  filter: saturate(0.2) brightness(0.75);
+  transition: filter 0.25s;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  .studio-art-clip {
+  filter: none;
+}
+.studio-option[aria-pressed="true"] .studio-art-clip {
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.art-scene {
+  position: absolute;
+  inset: 0;
+}
+.art-scene-a {
+  background:
+    radial-gradient(circle at 30% 30%, #fff3d6 0 11%, transparent 12%),
+    linear-gradient(180deg, #ffb26b 0%, #ff5a5f 55%, #8a1c4a 100%);
+}
+.art-scene-a::after {
+  content: "";
+  position: absolute;
+  inset: 52% 0 0;
+  background: #3b0f2e;
+  clip-path: polygon(
+    0 100%,
+    0 40%,
+    36% 0,
+    58% 45%,
+    78% 10%,
+    100% 55%,
+    100% 100%
+  );
+}
+.art-scene-b {
+  background:
+    radial-gradient(circle at 68% 28%, #e9d8ff 0 10%, transparent 11%),
+    linear-gradient(160deg, #2b1055 0%, #7c3aed 45%, #ff3d8b 100%);
+}
+[data-transition="cut"] .art-scene-b {
+  clip-path: inset(0 0 0 50%);
+}
+[data-transition="fade"] .art-scene-b {
+  opacity: 0.5;
+}
+[data-transition="slide"] .art-scene-a {
+  transform: translateX(-50%);
+}
+[data-transition="slide"] .art-scene-b {
+  transform: translateX(50%);
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-transition]
+  .art-scene {
+  animation: 2.4s ease-in-out infinite alternate;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-transition="cut"]
+  .art-scene-b {
+  clip-path: none;
+  animation-name: art-cut;
+  animation-timing-function: linear;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-transition="fade"]
+  .art-scene-b {
+  animation-name: art-fade;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-transition="slide"]
+  .art-scene-a {
+  animation-name: art-slide-out;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-transition="slide"]
+  .art-scene-b {
+  animation-name: art-slide-in;
+}
+@keyframes art-cut {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  50.01%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes art-fade {
+  0%,
+  20% {
+    opacity: 0;
+  }
+  80%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes art-slide-out {
+  0%,
+  20% {
+    transform: translateX(0);
+  }
+  80%,
+  100% {
+    transform: translateX(-100%);
+  }
+}
+@keyframes art-slide-in {
+  0%,
+  20% {
+    transform: translateX(100%);
+  }
+  80%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.art-camera {
+  transform-origin: 50% 50%;
+}
+.art-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 0.7));
+  transition: opacity 0.2s;
+}
+[data-motion="breathe"] .art-marks {
+  stroke-dasharray: 2 2;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"]) .art-marks {
+  opacity: 0;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="zoomin"]
+  .art-camera {
+  animation: art-zoom-in 3s ease-in-out infinite;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="zoomout"]
+  .art-camera {
+  animation: art-zoom-out 3s ease-in-out infinite;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="breathe"]
+  .art-camera {
+  animation: art-breathe 3s ease-in-out infinite;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="drift"]
+  .art-camera {
+  animation: art-drift 4s linear infinite;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="pulse"]
+  .art-camera {
+  animation: art-pulse 0.9s ease-out infinite;
+}
+.studio-option:is(:hover, :focus-visible, [aria-pressed="true"])
+  [data-motion="sway"]
+  .art-camera {
+  animation: art-sway 1.4s ease-in-out infinite alternate;
+}
+@keyframes art-zoom-in {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.4);
+  }
+}
+@keyframes art-zoom-out {
+  from {
+    transform: scale(1.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes art-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.14);
+  }
+}
+@keyframes art-drift {
+  0%,
+  50%,
+  100% {
+    transform: scale(1.3) translate(0, 6%) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.3) translate(7%, -6%) rotate(1deg);
+  }
+  75% {
+    transform: scale(1.3) translate(-7%, -6%) rotate(-1deg);
+  }
+}
+@keyframes art-pulse {
+  0%,
+  60%,
+  100% {
+    transform: scale(1);
+  }
+  25% {
+    transform: scale(1.12);
+  }
+}
+@keyframes art-sway {
+  from {
+    transform: scale(1.2) rotate(-5deg);
+  }
+  to {
+    transform: scale(1.2) rotate(5deg);
+  }
 }
 
 .studio-export {

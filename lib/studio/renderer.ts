@@ -21,6 +21,7 @@ import {
   timelineCuts,
   type Variant,
 } from "./model";
+import { TYPEFACES } from "./options";
 
 type Options = {
   project: Project;
@@ -95,11 +96,7 @@ export async function createStudioRenderer(
   const totalPages = pageCount(project, photos);
   const layout = variant === "main" ? project.layout : project[variant].layout;
   const typeface =
-    project.typeface === "serif"
-      ? "Georgia"
-      : project.typeface === "mono"
-        ? "monospace"
-        : "Arial";
+    TYPEFACES.find((t) => t.value === project.typeface)?.font ?? "Arial";
 
   function background(group: Konva.Group, photo: Photo | undefined, w = width) {
     group.add(
