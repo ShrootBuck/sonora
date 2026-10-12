@@ -17,14 +17,15 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sonora.party"),
-  title: "Sonora — Make dynamic picture stories",
+  title: "Sonora — Posts, carousels & picture stories",
   description:
-    "Animate a photo, cut your audio, and export a high-quality 60 FPS story. Everything stays on your device.",
+    "Format a photo dump, build a seamless carousel, or bring your photos to life with music. Create everything locally in your browser.",
   applicationName: "Sonora",
   alternates: { canonical: "/" },
   openGraph: {
     title: "Sonora",
-    description: "Make one photo feel alive at 60 FPS.",
+    description:
+      "Your camera roll, ready to post. Carousels, collages, and 60 FPS stories.",
     url: "https://sonora.party",
     siteName: "Sonora",
     type: "website",

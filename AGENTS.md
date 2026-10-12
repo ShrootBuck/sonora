@@ -11,122 +11,111 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Sonora product context
 
 This repository is **Sonora**, hosted at `sonora.party`. The old working name
-was Vignette. Do not restore old names in product copy, package metadata, file
-names, or generated downloads. The parent directory can keep its old name.
+was Vignette. Do not restore old names in copy, metadata, filenames, or downloads.
 
-Sonora is a browser-only editor for **dynamic picture stories**:
-
-1. The user selects one photo and one audio file.
-2. The user frames the photo on a 9:16 canvas.
-3. The user can add subtle, seamless motion.
-4. The user selects an exact audio range.
-5. Sonora exports a high-quality 1080 × 1920, 60 FPS MP4.
-
-This is not only a tool that disguises a still image as a video. Motion and
-effects are first-class product features. Keep a Still option, but do not make
-the product direction static-only again.
+Sonora is a browser-only Instagram composition studio. One local photo collection
+can become a Post, Carousel, or Story. The main tools are photo-dump formatting,
+connected carousels, collages, music-timed photo sequences, audio-reactive
+backdrops, and coordinated post/cover/story sets.
 
 ## Hard constraints
 
-- All photo, audio, and video processing must happen on the user's device.
-- Do not add media uploads, server-side conversion, accounts, a database,
-  object storage, a job queue, or a media-processing API.
-- Do not add `yt-dlp`. Users supply their own local audio files.
-- Do not add artificial duration or file-size limits. A device can run out of
-  memory or fail, but Sonora must not reject a valid job because of a made-up
-  product cap.
-- Target current Chrome and Safari on modern desktop and mobile devices.
-- The standard export is 1080 × 1920 at 60 FPS. Do not silently lower the frame
-  rate, resolution, or quality as a performance shortcut.
-- Use mature packaged libraries. Do not write a custom media codec, HEIC
-  decoder, canvas framework, or FFmpeg replacement.
-- This is a normal Next.js application with shadcn/ui. Do not migrate it to the
-  Sites workflow. Before changing shadcn components, read
-  `.agents/skills/shadcn/SKILL.md` and use the project's existing primitives.
+- All photo, audio, and video processing happens on the user's device.
+- No media uploads, accounts, database, storage service, queue, or processing API.
+- Users supply local audio. Do not add yt-dlp or music-download integrations.
+- Do not impose artificial duration, collection-size, or file-size limits.
+- Target modern Chrome/Chromium and Safari. Current Chromium on a modern Mac is
+  the primary performance target; do not add speculative performance fallbacks.
+- Story video remains 1080 × 1920 at 60 FPS. Never silently lower quality,
+  resolution, or frame rate. Posts use a 1080-pixel-wide selected aspect ratio.
+- Use mature packaged media libraries. Do not implement codecs, HEIC decoders,
+  or a new canvas framework.
+- This is a normal Next.js app with shadcn/ui, not a Sites project. Read
+  `.agents/skills/shadcn/SKILL.md` before UI work and reuse existing primitives.
 
 ## Current editing model
 
-- **Fill** crops the photo to the full 9:16 canvas. Motion affects the complete
-  image.
-- **Fit** is the default, preserves the entire foreground photo, and supports
-  30–100% sizing with drag bounds that keep every edge visible. Upper/center/lower
-  placement controls complement dragging.
-- Fit backdrops are Photo melt (default), Glow, Liquid, Swirl, Haze, Solid, and
-  Photo blur. Colors default to the photo. Photo melt warps a 32 × 32 color field
-  sampled locally from the image; other abstract effects use its extracted palette.
-  Optional palettes/custom colors, animation, pace, intensity, detail, grain,
-  dimming, and seeded pattern variations are available.
-- Abstract backdrops animate independently; the sharp foreground stays stationary.
-  Camera motion presets apply to Fill and Photo blur.
-- Current motion presets are Still, Zoom In, Zoom Out, Breathe, Drift, Pulse,
-  and Sway.
-- Dynamic presets have adjustable intensity. Breathe, Drift, Pulse, and Sway
-  use reusable 8, 6, or 4 second effect passes. Zoom In and Zoom Out render one
-  camera move across the full selected audio range.
-- The Konva preview is live. Safe-zone guides are editor-only and must never
-  appear in the output.
-- The audio editor supports exact flexible timestamps such as `0:33`, `67`, and
-  `1:07.5`. Do not replace it with a coarse whole-second-only control.
+- Post, Carousel, and Story share an ordered photo collection and style.
+- Fit is the default and preserves the entire photo at 30–100% sizing. Dragging
+  and position controls must keep every edge inside the photo's layout slot.
+- Fill crops to cover its slot, with 100–300% sizing and bounded positioning.
+- Layouts: Single, Diptych, Filmstrip, Contact sheet, Editorial, and Prints.
+- Connected carousels allocate one to three slide widths per photo, with seam
+  shifts and angles. Titles can cross the first seam. The swipe preview and
+  numbered downloads must use identical coordinates.
+- Colors, spacing, titles, subtitles, and typography are shared. Matching cover
+  and story-teaser variants independently adjust layout, size, and text position.
+- Story scenes group photos by layout capacity. Normalized cut positions retain
+  relative timing when the user changes the selected audio range.
+- Audio timestamps accept seconds and flexible colon notation with fractions.
+  Do not replace them with coarse integer-only controls.
+- Transitions are Cut, Dissolve, and Slide; collage photos can reveal in sequence.
+- Motion presets: Still, Zoom In, Zoom Out, Breathe, Drift, Pulse, and Sway.
+  Fill photos and Photo blur support camera motion. Abstract backdrops animate
+  independently while the sharp Fit foreground remains stationary.
+- Backdrops: Photo melt, Glow, Liquid, Swirl, Haze, Solid, and Photo blur. Keep
+  photo-derived colors, optional palettes, animation, pace, intensity, detail,
+  grain, dimming, and seeded pattern controls.
+- Locally analyzed bass, percussion, or energy envelopes drive reactivity.
+  The same source-audio timestamps must drive preview and export.
+- Safe-zone/Instagram overlays are approximate editor-only guides. Never include
+  them in downloaded media. Exporting or sharing does not publish to Instagram.
 
 ## Media architecture
 
-- `react-konva` and `konva` own the interactive 1080 × 1920 composition and
-  export the visual layer or layers.
-- `heic-to` / libheif provides the local HEIC fallback when the browser cannot
-  decode HEIC natively.
-- `mediabunny` and its `CanvasSource` are the primary visual encoder. They
-  feed exact timestamped canvas frames into the browser's native WebCodecs H.264
-  encoder and write the result as MP4.
-- `@ffmpeg/ffmpeg` with self-hosted `@ffmpeg/core` and `@ffmpeg/core-mt` assets
-  trims audio, repeats reusable compressed effects, and muxes the final MP4.
-  FFmpeg also remains the visual fallback when native H.264 is unavailable.
-- `next.config.ts` sends COOP and COEP headers so supported browsers can use
-  `SharedArrayBuffer` and the multithreaded FFmpeg core. Sonora falls back to the
-  single-thread core when isolation or threads are unavailable.
-
-Abstract backdrops use the same painter for preview, native encoding, and the
-FFmpeg fallback. Photo melt uses a lazily loaded Three.js WebGL renderer inside
-Konva; it does not replace Konva. The fallback uses bounded batches of lossless
-PNG frames and concatenates their CRF 14 H.264 chunks. Dispose GPU resources and
-delete temporary FFmpeg files on success, error, and cancellation.
-
-The exporter encodes Still as one reusable second. Breathe, Drift, Pulse, and
-Sway encode one 4, 6, or 8 second effect pass, then FFmpeg repeats the compressed
-stream while it trims and muxes audio. Zoom In and Zoom Out instead encode a
-single continuous move across the full selected audio duration.
-
-The native visual encoder requests H.264 High Profile Level 4.2, quantizer 14,
-and a 20 Mbps fallback bitrate. The FFmpeg visual fallback uses CRF 14, yuv420p,
-BT.709 metadata, and a 60 FPS time base. Final audio is 320 kbps / 48 kHz stereo
-AAC. Changes can improve compatibility or quality, but they must not quietly
-degrade the default output.
+- Konva owns the interactive composition, image exports, and video frames through
+  `lib/studio/renderer.ts`. Keep one shared scene graph for preview/export.
+- heic-to/libheif is the local fallback when native image decoding cannot read HEIC.
+- Three.js Photo melt runs inside the Konva backdrop painter. Reuse the GPU
+  painter across scene fields and dispose it on replacement and all exit paths.
+- Mediabunny CanvasSource/WebCodecs is the visual encoder, requesting H.264 High
+  Profile Level 4.2, quantizer 14, a 20 Mbps fallback bitrate, and 60 FPS.
+- FFmpeg WASM trims audio, encodes 320 kbps / 48 kHz stereo AAC, and muxes with
+  video stream copy. Let it select threading defaults. Do not rebuild a second
+  visual renderer with custom FFmpeg camera filters or PNG chunk fallbacks.
+- The published FFmpeg WASM release is distinct from desktop FFmpeg and cannot
+  directly access desktop GPU/video encoders. Preserve native browser encoding.
+- COOP/COEP headers enable the multithread core. When SharedArrayBuffer is absent,
+  the single-thread core performs the same mux. Missing native H.264 support is
+  an explicit error, never a silent quality downgrade.
+- fflate packages ordered PNGs and matching sets locally.
+- Clean up object URLs, stages, native encoders, GPU resources, and temporary
+  FFmpeg files on success, failure, cancellation, and unmount. A failed/cancelled
+  FFmpeg worker must not poison subsequent exports.
+- Frame count is ceil(duration × 60). Fractional video duration may exceed exact
+  audio duration by less than one video frame; keep the audio endpoint exact.
 
 ## Important files
 
-- `components/sonora-editor.tsx`: editor workflow and controls.
-- `components/story-canvas.tsx`: Konva preview, framing, motion, and layer
-  export.
-- `components/audio-timeline.tsx`: waveform and exact audio selection.
-- `lib/media/composition.ts`: shared composition, backdrop, and motion types.
-- `components/backdrop-controls.tsx`: backdrop styles, palettes, and controls.
-- `lib/media/backdrop.ts`: photo color extraction and vector effect artwork.
-- `lib/media/backdrop-painter.ts`: shared painter used by preview and both encoders.
-- `lib/media/photo-melt.ts`: Three.js shader for image-derived fluid color.
-- `lib/media/ffmpeg-client.ts`: FFmpeg loading, loop encoding, and final mux.
-- `lib/media/native-video-loop.ts`: Mediabunny/WebCodecs 60 FPS loop encoding.
-- `lib/media/load-image.ts`: browser image loading and HEIC fallback.
-- `public/ffmpeg/`: self-hosted single-thread and multithread FFmpeg assets.
+- `components/sonora-studio.tsx`: main Post / Carousel / Story workspace.
+- `components/studio-preview.tsx`: responsive interactive Konva preview lifecycle.
+- `lib/studio/model.ts`: layout, framing, timeline, and variant definitions.
+- `lib/studio/renderer.ts`: shared composition renderer.
+- `lib/studio/audio.ts`: local waveform/envelope/beat analysis.
+- `lib/studio/export.ts`: PNG, native video, ZIP, and matching-set exports.
+- `components/audio-timeline.tsx`: waveform, playback, and exact audio selection.
+- `components/backdrop-controls.tsx`: styles, palettes, and effect controls.
+- `lib/media/backdrop.ts`, `backdrop-painter.ts`, `photo-melt.ts`: backdrop artwork.
+- `lib/media/ffmpeg-client.ts`: worker lifecycle, audio trim, final mux, cancellation.
+- `lib/media/load-image.ts`: browser decoding and HEIC support.
+- `public/ffmpeg/`: self-hosted single-thread and multithread assets.
+- `components/sonora-editor.tsx`, `story-canvas.tsx`, and
+  `lib/media/native-video-loop.ts` retain the original single-photo editor and
+  encoder adapter; the homepage uses the new studio.
 
 ## Verification expectations
 
-Run both of these after implementation work:
+After implementation work run:
 
 ```bash
+bun test
 bun run lint
 bun run build
 ```
 
-For media changes, also test the actual local app with at least one real HEIC
-photo and one real audio file. Verify exact audio timestamps, each affected
-motion/framing mode, cancellation, and the output with `ffprobe` when practical.
-Compile success alone is not enough for FFmpeg filter changes.
+For media changes, also test the actual local browser with a real HEIC photo and
+real audio. Check affected layouts, framing, motion, transitions, exact timestamps,
+cancellation followed by retry, desktop/mobile layout, and downloaded outputs.
+Use ffprobe to verify resolution, codec, frame rate, frame count, and audio timing.
+Compile success alone does not verify media behavior. Remove temporary QA routes
+before the final build. Keep local validation distinct from production deployment.

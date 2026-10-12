@@ -1,80 +1,99 @@
 # Sonora
 
-Sonora turns one photo and one audio file into a dynamic 1080 × 1920, 60 FPS
-picture story. The editor runs at [sonora.party](https://sonora.party), but the
-user's media never leaves their browser.
+A browser-only studio for Instagram posts, carousels, and dynamic picture stories.
+Your photos and audio stay on your device. There are no accounts or uploads.
 
-## What it does
+## Make something
 
-- Loads HEIC, HEIF, JPEG, PNG, WebP, and other browser-supported images.
-- Defaults to Fit, keeping every edge of a wide, square, or tall photo visible.
-  Resize from 30–100%, drag within the canvas, or choose upper/center/lower placement.
-  Fill remains available for a full-bleed crop.
-- Fills the surrounding space with Photo melt, Glow, Liquid, Swirl, Haze, Solid,
-  or the original adjustable Photo blur.
-- Defaults to colors from the photo. Photo melt warps a locally sampled color
-  field from the actual image; other abstract effects use its extracted palette.
-  Optional palettes and custom colors let you change the mood.
-- Controls backdrop animation, pace, intensity, detail, grain, dimming, and pattern
-  variations. The sharp foreground stays stationary in Fit.
-- Retains Still, Zoom In, Zoom Out, Breathe, Drift, Pulse, and Sway camera motion
-  for Fill and Photo blur. Story safe-zone guides are editor-only.
-- Decodes an audio file locally, draws its waveform, and accepts exact start/end
-  timestamps.
-- Exports high-quality 60 FPS H.264 video with 320 kbps AAC audio in an MP4
-  container.
-- Downloads or opens the finished file in the device share sheet.
+1. Add a collection of photos (including HEIC/HEIF).
+2. Choose **Post**, **Carousel**, or **Story**. Your collection and style carry across.
+3. Pick a layout and treatment. Select a photo to adjust its framing, or drag it
+   directly in the preview. Fit preserves every edge; Fill crops to the slot.
+4. Export a PNG, numbered carousel PNGs in a ZIP, or a 60 FPS MP4.
 
-Sonora does not add a duration or file-size policy. A large job can still exceed
-the device's memory or WebAssembly's platform limits; that is a real browser limit,
-not a product restriction.
+### Posts and photo dumps
 
-## Architecture
+- 4:5, 3:4, square, landscape, and 9:16 canvases, at 1080 pixels wide.
+- Shared paper, film, color, and unframed treatments; spacing and custom colors.
+- Single images, diptychs, filmstrips, contact sheets, editorial layouts, and prints.
+- Individual Fit/Fill, size and positioning, with an apply-to-all action.
+- Drag to reorder on desktop; earlier/later buttons also work on touch devices.
+- Optional titles, small print, three type styles, and adjustable size/position.
 
-All media work is client-side:
+### Connected carousels
 
-- **React Konva** owns the interactive canvas, live motion preview, and exact
-  1080 × 1920 visual layers.
-- **Three.js** renders Photo melt's periodic shader into a canvas used by Konva.
-  It warps a soft 32 × 32 color sample, never the full-resolution foreground.
-  The final shader, composition, and export still render at 1080 × 1920.
-  The other abstract effects draw vector artwork through Konva's scene function.
-- **Mediabunny** feeds exact timestamped canvas frames into the browser's native
-  WebCodecs H.264 encoder and writes the reusable visual loop as MP4. This is the
-  primary path and can use hardware acceleration supplied by the browser.
-- **ffmpeg.wasm** trims the selected audio, repeats the already-compressed visual
-  loop with stream copy, and muxes the final MP4. If native H.264 encoding is not
-  available, Sonora can still encode the loop with FFmpeg. It tries the
-  multithreaded core first when cross-origin isolation and `SharedArrayBuffer` are
-  available, then falls back to the much slower single-thread core.
-- **heic-to / libheif** is the fallback HEIC decoder when the browser cannot decode
-  a photo natively.
+Switch Carousel to **Connected strip**, then let a photo span one, two, or three
+slides in the Photo panel. Shift and angle images across seams, or place a title
+across the first boundary. Scrub the swipe preview. Downloads are sliced and
+numbered in posting order.
 
-There are no accounts, database, uploads, object storage, job queue, or media API.
-The Next.js server only delivers the app and its self-hosted WebAssembly assets.
+### Stories and sound
 
-Static stories encode one reusable second at 60 FPS. Dynamic stories encode one
-seamless 4, 6, or 8 second 60 FPS effect loop based on the selected speed. The
-native path requests H.264 High Profile Level 4.2 with quantizer 14 and a 20 Mbps
-fallback bitrate. The FFmpeg video fallback uses CRF 14. Abstract backdrops use
-exactly the same painter in the preview and both encoders. The fallback encodes
-30 lossless PNG frames at a time, then concatenates compressed chunks, bounding
-working memory without lowering resolution or frame rate. Zoom In and Zoom Out
-render one continuous move over the selected duration. The final file uses a 320
-kbps AAC audio track. The final pass repeats the compressed loop with stream copy
-and muxes the selected audio, so a long song does not force Sonora to re-encode
-the same visual cycle over and over.
+- Multiple scenes, precise audio trim, and editable scene-change timestamps.
+- Flexible time input: `67`, `1:07.5`, `0:33.125`, or `1:02:03`.
+- Cut, dissolve, and slide transitions; optional staggered collage reveals.
+- Still, Zoom In/Out, Breathe, Drift, Pulse, and Sway camera motion.
+- Photo melt, Glow, Liquid, Swirl, Haze, Solid, and Photo blur backdrops, using
+  photo-derived colors or an adjustable palette.
+- Local analysis of bass, percussion, and energy drives background reactivity.
+  Beat snapping finds nearby detected attacks; manual timing remains editable.
+- Optional audio: silent stories use an editable duration with no imposed cap.
+- Video stays at 1080 × 1920, 60 FPS, H.264 High Profile; audio is AAC at
+  320 kbps, 48 kHz stereo. A fractional final video frame can extend by less than
+  1/60 second beyond the selected audio endpoint.
 
-## Local development
+### Matching sets
+
+Adjust **Composition**, **Story teaser**, and **Cover** in the preview tabs.
+Each variant has its own layout, composition size, and text placement, while
+colors and typography stay shared. A matching-set ZIP includes all carousel
+slides, a cover, and a still or animated 9:16 teaser.
+
+Instagram overlays are approximate placement guides, not a guarantee of every
+Instagram surface or device's crop. Guides never enter the exported artwork.
+Downloads and device sharing do not publish to Instagram. Edits live in the
+current browser tab; reloading clears the collection.
+
+## Media architecture
+
+- **Konva** owns composition, clipping, dragging, typography, transitions, and
+  image exports. `lib/studio/renderer.ts` supplies the same scene graph to the
+  live preview and every exported frame.
+- **heic-to / libheif** decodes HEIC locally when the browser cannot.
+- **Three.js** supplies Photo melt through the shared backdrop painter. One GPU
+  painter updates its sampled photo field as scenes change, and is disposed when
+  the renderer is replaced, completed, or cancelled.
+- **Web Audio** analyzes decoded samples locally. Preview and export interpolate
+  the same stored envelopes, indexed by exact source-audio timestamps.
+- **Mediabunny / WebCodecs** encode exact timestamped canvas frames using the
+  browser's H.264 encoder. Requests use High Profile Level 4.2, quantizer 14 and a
+  20 Mbps fallback bitrate, preserving the existing quality target.
+- **FFmpeg WASM** trims audio, encodes AAC, and muxes the already-compressed video
+  with stream copy. It does not redraw the composition or run a second video
+  encoding pipeline. FFmpeg chooses its codec threading defaults. The current
+  published `@ffmpeg/ffmpeg` and core releases are used; these are distinct from
+  desktop FFmpeg versions and do not expose desktop hardware encoders.
+- The multithread core loads when cross-origin isolation and SharedArrayBuffer
+  are available; otherwise the single-thread build runs the same mux operation.
+  Unsupported native H.264 produces an explicit error instead of silently
+  lowering quality or launching a separate compatibility video renderer.
+- **fflate** packages numbered PNGs and coordinated sets locally.
+
+FFmpeg workers are reused between successful exports. Temporary files are
+removed afterward; failures or cancellation discard the worker so the next
+export starts cleanly. Native encoders, GPU painters, object URLs, and preview
+stages have explicit cleanup. Exports are cancellable, including ZIP packaging.
+No artificial file-size or duration limits are imposed. Device memory and
+browser limits still apply.
+
+## Development
 
 ```bash
 bun install
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-Useful checks:
+Visit [localhost:3000](http://localhost:3000).
 
 ```bash
 bun test
@@ -82,16 +101,13 @@ bun run lint
 bun run build
 ```
 
-The COOP and COEP response headers in `next.config.ts` are required for the
-multithreaded encoder. Keep both FFmpeg cores under `public/ffmpeg`: current Chrome
-and Safari can then use the fastest path their security model permits.
+Tests cover framing bounds, layout geometry, timeline ordering, beat snapping,
+source-audio envelope sampling, and backdrop determinism. For media changes,
+exercise the real browser with HEIC and audio, download files, and check the
+resulting MP4 with `ffprobe`. Cancellation must be followed by a successful new
+export. Verify both desktop and narrow touch layouts.
 
-## Browser target
-
-Sonora targets the current stable versions of Chrome and Safari on modern desktop
-and mobile devices. Export speed depends heavily on CPU, memory, browser, source
-format, and clip length. The single-thread fallback is intentionally slower but
-more compatible.
-
-Photo melt requires WebGL. If it is unavailable, the editor explains how to choose
-another backdrop. Other styles, the photo, and the audio remain usable.
+`next.config.ts` supplies COOP/COEP headers. Keep the self-hosted FFmpeg assets
+under `public/ffmpeg/`. Current Chrome/Chromium is the primary validation target;
+current Safari is also a browser target and must expose the requested native
+H.264 configuration to export video.

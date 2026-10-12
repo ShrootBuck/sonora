@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { formatTime, parseTime } from "@/lib/media/time";
+import type { AudioAnalysis } from "@/lib/studio/audio";
 import { cn } from "@/lib/utils";
+
+export { formatTime, parseTime } from "@/lib/media/time";
 
 type AudioTimelineProps = {
   file: File;
@@ -21,40 +25,13 @@ type AudioTimelineProps = {
   selection: [number, number];
   onDurationChange: (duration: number) => void;
   onSelectionChange: (selection: [number, number]) => void;
+  analysis?: AudioAnalysis | null;
+  onTimeChange?: (time: number) => void;
+  onPlayingChange?: (playing: boolean) => void;
+  disabled?: boolean;
 };
 
 const WAVEFORM_BARS = 144;
-
-export function formatTime(value: number) {
-  if (!Number.isFinite(value) || value < 0) return "0:00";
-  const totalSeconds = Math.floor(value);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const fraction = Math.floor((value % 1) * 10);
-
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}.${fraction}`;
-  }
-
-  return `${minutes}:${seconds.toString().padStart(2, "0")}.${fraction}`;
-}
-
-function parseTime(value: string) {
-  const parts = value.trim().split(":");
-  if (parts.some((part) => part === "" || !Number.isFinite(Number(part)))) {
-    return null;
-  }
-
-  if (parts.length === 1) return Number(parts[0]);
-  if (parts.length === 2) return Number(parts[0]) * 60 + Number(parts[1]);
-  if (parts.length === 3) {
-    return Number(parts[0]) * 3600 + Number(parts[1]) * 60 + Number(parts[2]);
-  }
-  return null;
-}
 
 type TimeInputProps = {
   id: string;
@@ -106,6 +83,10 @@ export function AudioTimeline({
   selection,
   onDurationChange,
   onSelectionChange,
+  analysis,
+  onTimeChange,
+  onPlayingChange,
+  disabled = false,
 }: AudioTimelineProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -115,6 +96,7 @@ export function AudioTimeline({
   const [waveformUnavailable, setWaveformUnavailable] = useState(false);
 
   useEffect(() => {
+    if (analysis !== undefined) return;
     let cancelled = false;
     setWaveform([]);
     setWaveformUnavailable(false);
@@ -160,14 +142,32 @@ export function AudioTimeline({
     return () => {
       cancelled = true;
     };
-  }, [file]);
+  }, [file, analysis]);
+
+  useEffect(() => {
+    if (disabled) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      if (animationRef.current !== null)
+        cancelAnimationFrame(animationRef.current);
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    onPlayingChange?.(isPlaying);
+    return () => onPlayingChange?.(false);
+  }, [isPlaying, onPlayingChange]);
 
   useEffect(() => {
     setCurrentTime(selection[0]);
-    if (audioRef.current && !isPlaying) {
+    setIsPlaying(false);
+    if (animationRef.current !== null)
+      cancelAnimationFrame(animationRef.current);
+    if (audioRef.current) {
+      audioRef.current.pause();
       audioRef.current.currentTime = selection[0];
     }
-  }, [isPlaying, selection]);
+  }, [selection]);
 
   useEffect(() => {
     return () => {
@@ -195,7 +195,8 @@ export function AudioTimeline({
       ),
     [],
   );
-  const bars = waveform.length ? waveform : fallbackWaveform;
+  const bars =
+    analysis?.waveform ?? (waveform.length ? waveform : fallbackWaveform);
 
   const stopPlayback = (reset = false) => {
     const audio = audioRef.current;
@@ -208,6 +209,7 @@ export function AudioTimeline({
     if (reset && audio) {
       audio.currentTime = selection[0];
       setCurrentTime(selection[0]);
+      onTimeChange?.(selection[0]);
     }
   };
 
@@ -219,6 +221,7 @@ export function AudioTimeline({
       return;
     }
     setCurrentTime(audio.currentTime);
+    onTimeChange?.(audio.currentTime);
     animationRef.current = requestAnimationFrame(tick);
   };
 
@@ -233,7 +236,12 @@ export function AudioTimeline({
     if (audio.currentTime < selection[0] || audio.currentTime >= selection[1]) {
       audio.currentTime = selection[0];
     }
-    await audio.play();
+    try {
+      await audio.play();
+    } catch {
+      setIsPlaying(false);
+      return;
+    }
     setIsPlaying(true);
     animationRef.current = requestAnimationFrame(tick);
   };
@@ -261,6 +269,7 @@ export function AudioTimeline({
             isPlaying ? "Pause selected audio" : "Play selected audio"
           }
           onClick={() => void togglePlayback()}
+          disabled={disabled}
         >
           {isPlaying ? <PauseIcon /> : <PlayIcon />}
         </Button>
@@ -275,6 +284,7 @@ export function AudioTimeline({
               const audio = audioRef.current;
               if (audio) audio.currentTime = nextTime;
               setCurrentTime(nextTime);
+              onTimeChange?.(nextTime);
             }}
           >
             <div
@@ -312,6 +322,7 @@ export function AudioTimeline({
 
           <Slider
             id="audio-range"
+            thumbLabels={["Audio selection start", "Audio selection end"]}
             min={0}
             max={Math.max(duration, 0.01)}
             step={0.01}

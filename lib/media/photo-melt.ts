@@ -73,7 +73,7 @@ export function createPhotoMelt(
     alpha: false,
     antialias: false,
     preserveDrawingBuffer: true,
-    powerPreference: "low-power",
+    powerPreference: "high-performance",
   });
   renderer.setPixelRatio(1);
   renderer.setSize(
@@ -111,9 +111,15 @@ export function createPhotoMelt(
   scene.add(new Mesh(geometry, material));
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
   let disposed = false;
+  let currentField = field;
   return {
     draw(context, settings, progress) {
       if (disposed) return;
+      if (settings.photoField && settings.photoField !== currentField) {
+        data.set(settings.photoField);
+        texture.needsUpdate = true;
+        currentField = settings.photoField;
+      }
       if (renderer.getContext().isContextLost())
         throw new Error(
           "The graphics context was lost. Reload the photo or choose another backdrop.",
@@ -126,7 +132,8 @@ export function createPhotoMelt(
       uniforms.seed.value = settings.seed * 0.618;
       uniforms.grain.value = settings.grain / 100;
       uniforms.dim.value = settings.dim / 100;
-      uniforms.fromPhoto.value = settings.palette === "photo" && field ? 1 : 0;
+      uniforms.fromPhoto.value =
+        settings.palette === "photo" && currentField ? 1 : 0;
       uniforms.base.value.copy(encodedColor(settings.colors[0]));
       uniforms.color.value.copy(encodedColor(settings.colors[1]));
       uniforms.accent.value.copy(encodedColor(settings.colors[2]));
