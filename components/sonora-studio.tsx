@@ -6,6 +6,7 @@ import {
   ArrowRightIcon,
   AudioLinesIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FilmIcon,
@@ -18,12 +19,19 @@ import {
   PlayIcon,
   PlusIcon,
   RotateCcwIcon,
+  ScanIcon,
   Share2Icon,
   SparklesIcon,
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   AudioTimeline,
   formatTime,
@@ -135,7 +143,7 @@ function Amount({
     <Field>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel>{label}</FieldLabel>
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="studio-value">
           {Number(value.toFixed(2))}
           {suffix}
         </span>
@@ -461,7 +469,7 @@ export function SonoraStudio() {
   const videoReady = !audioLoading && duration > 0;
 
   return (
-    <main className="studio-shell">
+    <main className="studio-shell" data-has-photos={photos.length > 0}>
       <input
         ref={photoInput}
         id="studio-photos"
@@ -490,34 +498,14 @@ export function SonoraStudio() {
         disabled={working}
       />
       <header className="studio-header">
-        <a
-          href="/"
-          className="flex items-center gap-2.5"
-          aria-label="Sonora home"
-        >
+        <a href="/" className="studio-brand" aria-label="Sonora home">
           <span className="studio-mark">
             <AudioLinesIcon className="size-5" />
           </span>
-          <span className="text-xl font-semibold tracking-[-0.06em]">
-            sonora<span className="text-primary">.</span>
+          <span className="studio-wordmark">
+            sonora<span>.</span>
           </span>
         </a>
-        <span className="hidden text-xs text-muted-foreground sm:block">
-          Your photos. A little more possibility.
-        </span>
-        <Badge variant="outline">
-          <LockKeyholeIcon data-icon="inline-start" /> On your device
-        </Badge>
-      </header>
-      <div className="studio-topbar">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-medium tracking-tight">
-            Make something worth sharing.
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            One collection. Posts, carousels, and stories.
-          </p>
-        </div>
         <ToggleGroup
           aria-label="Create a"
           value={[project.mode]}
@@ -529,8 +517,7 @@ export function SonoraStudio() {
               setTime(0);
             }
           }}
-          variant="outline"
-          spacing={0}
+          className="segmented segmented-hot"
           disabled={working}
         >
           <ToggleGroupItem value="post">
@@ -543,10 +530,28 @@ export function SonoraStudio() {
             <FilmIcon /> Story
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
+        <Badge
+          variant="outline"
+          className="studio-privacy h-7 rounded-full px-3"
+        >
+          <LockKeyholeIcon data-icon="inline-start" /> On your device
+        </Badge>
+      </header>
+      {photos.length ? (
+        <h1 className="sr-only">Sonora studio</h1>
+      ) : (
+        <div className="studio-topbar">
+          <h1 className="studio-title">
+            Make something <em className="hot-text">worth sharing.</em>
+          </h1>
+          <p className="studio-subtitle">
+            One collection. Posts, carousels, and stories.
+          </p>
+        </div>
+      )}
       <div className="studio-workspace">
         <section
-          className="studio-workbench"
+          className="studio-panel studio-workbench"
           aria-label="Your composition"
           onDragOver={(e) => {
             if (e.dataTransfer.types.includes("Files")) {
@@ -565,36 +570,46 @@ export function SonoraStudio() {
               void addPhotos(Array.from(e.dataTransfer.files));
           }}
         >
-          <div className="studio-preview-toolbar">
-            <ToggleGroup
-              aria-label="Preview version"
-              value={[variant]}
-              onValueChange={(v) => {
-                if (v[0]) {
-                  setVariant(v[0] as Variant);
-                  setAnimate(false);
-                }
-              }}
-              disabled={working}
-              size="sm"
-              spacing={0}
-            >
-              <ToggleGroupItem value="main">Composition</ToggleGroupItem>
-              <ToggleGroupItem value="teaser">Story teaser</ToggleGroupItem>
-              <ToggleGroupItem value="cover">Cover</ToggleGroupItem>
-            </ToggleGroup>
-            <Toggle
-              aria-label="Show Instagram guides"
-              pressed={guides}
-              onPressedChange={setGuides}
-              size="sm"
-            >
-              Guides
-            </Toggle>
-          </div>
           <div
             className={cn("studio-preview-area", dragging && "studio-dragging")}
+            style={
+              photo
+                ? ({
+                    "--glow-a": photo.colors[1],
+                    "--glow-b": photo.colors[2],
+                  } as CSSProperties)
+                : undefined
+            }
           >
+            <div className="studio-preview-toolbar">
+              <ToggleGroup
+                aria-label="Preview version"
+                value={[variant]}
+                onValueChange={(v) => {
+                  if (v[0]) {
+                    setVariant(v[0] as Variant);
+                    setAnimate(false);
+                  }
+                }}
+                disabled={working}
+                size="sm"
+                className="segmented"
+              >
+                <ToggleGroupItem value="main">Composition</ToggleGroupItem>
+                <ToggleGroupItem value="teaser">Story teaser</ToggleGroupItem>
+                <ToggleGroupItem value="cover">Cover</ToggleGroupItem>
+              </ToggleGroup>
+              <Toggle
+                aria-label="Show Instagram guides"
+                pressed={guides}
+                onPressedChange={setGuides}
+                size="sm"
+                className="studio-chip"
+              >
+                <ScanIcon data-icon="inline-start" />
+                <span className="studio-chip-label">Guides</span>
+              </Toggle>
+            </div>
             {photos.length ? (
               <StudioPreview
                 project={project}
@@ -613,9 +628,12 @@ export function SonoraStudio() {
                 disabled={working}
               />
             ) : (
-              <Empty>
+              <Empty className="studio-empty">
                 <div className="studio-empty-art" aria-hidden="true">
                   <div className="sample-print sample-print-back">
+                    <div />
+                  </div>
+                  <div className="sample-print sample-print-mid">
                     <div />
                   </div>
                   <div className="sample-print sample-print-front">
@@ -626,7 +644,10 @@ export function SonoraStudio() {
                   <span className="sample-star">✳</span>
                 </div>
                 <EmptyHeader>
-                  <EmptyTitle>Your camera roll has potential.</EmptyTitle>
+                  <EmptyTitle>
+                    Your camera roll has{" "}
+                    <em className="hot-text">potential.</em>
+                  </EmptyTitle>
                   <EmptyDescription>
                     Drop in a few photos. Find a layout you love.
                     <br />
@@ -636,29 +657,32 @@ export function SonoraStudio() {
                 <EmptyContent>
                   <Button
                     size="lg"
+                    className="studio-export-cta mt-2 px-6"
                     onClick={() => photoInput.current?.click()}
                     disabled={loading}
                   >
                     <PlusIcon data-icon="inline-start" />
                     {loading ? "Opening photos…" : "Choose photos"}
                   </Button>
-                  <span className="text-xs text-muted-foreground">
-                    HEIC, JPEG, PNG, WebP · All processed here
+                  <span className="studio-spec">
+                    HEIC · JPEG · PNG · WebP — never leaves your device
                   </span>
                 </EmptyContent>
               </Empty>
             )}
             {dragging ? (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/90 text-lg font-medium">
-                Drop your photos here
+              <div className="studio-drop-overlay">
+                <span className="hot-text">Drop your photos here</span>
               </div>
             ) : null}
           </div>
           <div className="studio-canvas-footer">
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {size.width} × {size.height}
+            <span className="studio-spec">
+              <b>
+                {size.width} × {size.height}
+              </b>
               {project.mode === "story" && variant !== "cover"
-                ? " · 60 FPS"
+                ? " · 60 FPS · H.264"
                 : " · PNG"}
             </span>
             {photos.length > 0 &&
@@ -737,11 +761,8 @@ export function SonoraStudio() {
           ) : null}
           <div className="studio-collection">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-medium">
-                YOUR COLLECTION{" "}
-                <span className="ml-2 text-muted-foreground">
-                  {photos.length}
-                </span>
+              <span className="studio-section-label">
+                Your collection <span>{photos.length}</span>
               </span>
               <Button
                 variant="ghost"
@@ -757,7 +778,7 @@ export function SonoraStudio() {
                 Add photos
               </Button>
             </div>
-            <div className="flex min-h-24 gap-2 overflow-x-auto py-3">
+            <div className="photo-strip">
               {photos.map((p, i) => (
                 <button
                   type="button"
@@ -804,11 +825,22 @@ export function SonoraStudio() {
                   <span>{String(i + 1).padStart(2, "0")}</span>
                 </button>
               ))}
-              {!photos.length ? (
+              {photos.length ? (
+                <button
+                  type="button"
+                  className="photo-add-tile"
+                  aria-label="Add more photos"
+                  disabled={working || loading}
+                  onClick={() => photoInput.current?.click()}
+                >
+                  {loading ? <Spinner /> : <PlusIcon className="size-5" />}
+                  Add
+                </button>
+              ) : (
                 <p className="self-center text-xs text-muted-foreground">
                   Your photos will appear here, in posting order.
                 </p>
-              ) : null}
+              )}
             </div>
             {photo ? (
               <div className="flex items-center gap-1">
@@ -850,8 +882,8 @@ export function SonoraStudio() {
           {project.mode === "story" && photos.length > 0 ? (
             <div className="studio-timeline">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium">STORY TIMELINE</span>
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="studio-section-label">Story timeline</span>
+                <span className="studio-value">
                   {formatTime(time)} / {formatTime(duration)}
                 </span>
               </div>
@@ -896,635 +928,654 @@ export function SonoraStudio() {
             </div>
           ) : null}
         </section>
-        <aside className="studio-inspector" aria-label="Editing controls">
-          <fieldset disabled={working} className="min-w-0">
-            <Tabs value={panel} onValueChange={(v) => setPanel(String(v))}>
-              <TabsList variant="line" className="w-full">
-                <TabsTrigger value="style">
-                  <LayersIcon />
-                  Style
-                </TabsTrigger>
-                <TabsTrigger value="photo">
-                  <ImagesIcon />
-                  Photo
-                </TabsTrigger>
-                <TabsTrigger value="sound">
-                  <Music2Icon />
-                  Sound & motion
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="style" className="pt-6">
-                <FieldGroup>
-                  {variant !== "main" ? (
-                    <Alert>
-                      <AlertTitle>
-                        {variant === "teaser"
-                          ? "Matching story teaser"
-                          : "Matching cover"}
-                      </AlertTitle>
-                      <AlertDescription>
-                        Adjust this version's layout and framing. Colors and
-                        typography stay connected to your main composition.
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-                  {variant === "main" && project.mode !== "story" ? (
-                    <Choice
-                      label="Canvas"
-                      value={project.aspect}
-                      options={ASPECTS}
-                      onChange={(aspect) => change({ aspect })}
-                    />
-                  ) : null}
-                  {variant === "main" && project.mode === "carousel" ? (
-                    <Choice
-                      label="Carousel"
-                      value={project.connected ? "connected" : "individual"}
-                      options={[
-                        { value: "individual", label: "Individual slides" },
-                        { value: "connected", label: "Connected strip" },
-                      ]}
-                      onChange={(v) => {
-                        change({ connected: v === "connected" });
-                        setPage(0);
-                      }}
-                    />
-                  ) : null}
-                  {!project.connected ||
-                  project.mode !== "carousel" ||
-                  variant !== "main" ? (
-                    <Choice
-                      label="Layout"
-                      value={
-                        variant === "main"
-                          ? project.layout
-                          : project[variant].layout
-                      }
-                      options={LAYOUTS}
-                      onChange={(layout) =>
-                        variant === "main"
-                          ? change({ layout, cuts: [] })
-                          : change({
-                              [variant]: { ...project[variant], layout },
-                            })
-                      }
-                    />
-                  ) : (
-                    <FieldDescription>
-                      A continuous strip, sliced into numbered slides. In Photo,
-                      let a panorama span two or three slides, or shift a photo
-                      across a seam.
-                    </FieldDescription>
-                  )}
-                  {variant !== "main" ? (
-                    <Amount
-                      label="Composition size"
-                      value={project[variant].scale * 100}
-                      min={30}
-                      suffix="%"
-                      onChange={(n) =>
-                        change({
-                          [variant]: { ...project[variant], scale: n / 100 },
-                        })
-                      }
-                    />
-                  ) : null}
-                  <Choice
-                    label="Treatment"
-                    value={project.treatment}
-                    options={[
-                      { value: "clean", label: "Full bleed" },
-                      { value: "border", label: "Paper" },
-                      { value: "film", label: "Film" },
-                      { value: "color", label: "Color" },
-                    ]}
-                    onChange={(treatment) => {
-                      change({ treatment });
-                      if (treatment === "clean")
-                        setPhotos((items) =>
-                          items.map((p) => ({
-                            ...p,
-                            fit: "fill",
-                            scale: 1,
-                            x: 0,
-                            y: 0,
-                          })),
-                        );
-                    }}
-                  />
-                  {project.treatment !== "clean" ? (
-                    <Amount
-                      label="Spacing"
-                      value={project.gap}
-                      max={120}
-                      suffix=" px"
-                      onChange={(gap) => change({ gap })}
-                    />
-                  ) : null}
-                  <div className="flex gap-4">
-                    <Field>
-                      <FieldLabel htmlFor="paper-color">Background</FieldLabel>
-                      <Input
-                        id="paper-color"
-                        type="color"
-                        value={project.background}
-                        onChange={(e) => change({ background: e.target.value })}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="type-color">Text</FieldLabel>
-                      <Input
-                        id="type-color"
-                        type="color"
-                        value={project.ink}
-                        onChange={(e) => change({ ink: e.target.value })}
-                      />
-                    </Field>
-                  </div>
-                  {photo ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        change({
-                          background: photo.colors[0],
-                          ink: photo.colors[2],
-                          treatment: "color",
-                        })
-                      }
-                    >
-                      <SparklesIcon data-icon="inline-start" />
-                      Use this photo's colors
-                    </Button>
-                  ) : null}
-                  <Separator />
-                  <Field>
-                    <FieldLabel htmlFor="studio-title">Title</FieldLabel>
-                    <Input
-                      id="studio-title"
-                      placeholder="A weekend worth keeping"
-                      value={project.title}
-                      onChange={(e) => change({ title: e.target.value })}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="studio-subtitle">
-                      Small print
-                    </FieldLabel>
-                    <Input
-                      id="studio-subtitle"
-                      placeholder="Somewhere good, with good people."
-                      value={project.subtitle}
-                      onChange={(e) => change({ subtitle: e.target.value })}
-                    />
-                  </Field>
-                  {project.title || project.subtitle ? (
-                    <>
+        <aside
+          className="studio-panel studio-inspector"
+          aria-label="Editing controls"
+        >
+          <div className="studio-inspector-scroll">
+            <fieldset disabled={working} className="min-w-0">
+              <Tabs value={panel} onValueChange={(v) => setPanel(String(v))}>
+                <div className="studio-tabs-bar">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="style">
+                      <LayersIcon />
+                      Style
+                    </TabsTrigger>
+                    <TabsTrigger value="photo">
+                      <ImagesIcon />
+                      Photo
+                    </TabsTrigger>
+                    <TabsTrigger value="sound">
+                      <Music2Icon />
+                      Sound & motion
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                <TabsContent value="style" className="pt-3">
+                  <FieldGroup>
+                    {variant !== "main" ? (
+                      <Alert>
+                        <AlertTitle>
+                          {variant === "teaser"
+                            ? "Matching story teaser"
+                            : "Matching cover"}
+                        </AlertTitle>
+                        <AlertDescription>
+                          Adjust this version's layout and framing. Colors and
+                          typography stay connected to your main composition.
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+                    {variant === "main" && project.mode !== "story" ? (
                       <Choice
-                        label="Typography"
-                        value={project.typeface}
+                        label="Canvas"
+                        value={project.aspect}
+                        options={ASPECTS}
+                        onChange={(aspect) => change({ aspect })}
+                      />
+                    ) : null}
+                    {variant === "main" && project.mode === "carousel" ? (
+                      <Choice
+                        label="Carousel"
+                        value={project.connected ? "connected" : "individual"}
                         options={[
-                          { value: "sans", label: "Modern" },
-                          { value: "serif", label: "Editorial" },
-                          { value: "mono", label: "Typewriter" },
+                          { value: "individual", label: "Individual slides" },
+                          { value: "connected", label: "Connected strip" },
                         ]}
-                        onChange={(typeface) => change({ typeface })}
+                        onChange={(v) => {
+                          change({ connected: v === "connected" });
+                          setPage(0);
+                        }}
                       />
-                      <Amount
-                        label="Title size"
-                        value={project.titleSize}
-                        min={24}
-                        max={160}
-                        suffix=" px"
-                        onChange={(titleSize) => change({ titleSize })}
-                      />
-                      <Amount
-                        label="Text position"
-                        value={Math.round(
-                          (variant === "main"
-                            ? project.titleY
-                            : project[variant].titleY) * 100,
-                        )}
-                        max={90}
-                        suffix="%"
-                        onChange={(n) =>
+                    ) : null}
+                    {!project.connected ||
+                    project.mode !== "carousel" ||
+                    variant !== "main" ? (
+                      <Choice
+                        label="Layout"
+                        value={
                           variant === "main"
-                            ? change({ titleY: n / 100 })
+                            ? project.layout
+                            : project[variant].layout
+                        }
+                        options={LAYOUTS}
+                        onChange={(layout) =>
+                          variant === "main"
+                            ? change({ layout, cuts: [] })
                             : change({
-                                [variant]: {
-                                  ...project[variant],
-                                  titleY: n / 100,
-                                },
+                                [variant]: { ...project[variant], layout },
                               })
                         }
                       />
-                      {project.connected &&
-                      project.mode === "carousel" &&
-                      variant === "main" ? (
-                        <Toggle
-                          pressed={project.titleAcross}
-                          onPressedChange={(titleAcross) =>
-                            change({ titleAcross })
+                    ) : (
+                      <FieldDescription>
+                        A continuous strip, sliced into numbered slides. In
+                        Photo, let a panorama span two or three slides, or shift
+                        a photo across a seam.
+                      </FieldDescription>
+                    )}
+                    {variant !== "main" ? (
+                      <Amount
+                        label="Composition size"
+                        value={project[variant].scale * 100}
+                        min={30}
+                        suffix="%"
+                        onChange={(n) =>
+                          change({
+                            [variant]: { ...project[variant], scale: n / 100 },
+                          })
+                        }
+                      />
+                    ) : null}
+                    <Choice
+                      label="Treatment"
+                      value={project.treatment}
+                      options={[
+                        { value: "clean", label: "Full bleed" },
+                        { value: "border", label: "Paper" },
+                        { value: "film", label: "Film" },
+                        { value: "color", label: "Color" },
+                      ]}
+                      onChange={(treatment) => {
+                        change({ treatment });
+                        if (treatment === "clean")
+                          setPhotos((items) =>
+                            items.map((p) => ({
+                              ...p,
+                              fit: "fill",
+                              scale: 1,
+                              x: 0,
+                              y: 0,
+                            })),
+                          );
+                      }}
+                    />
+                    {project.treatment !== "clean" ? (
+                      <Amount
+                        label="Spacing"
+                        value={project.gap}
+                        max={120}
+                        suffix=" px"
+                        onChange={(gap) => change({ gap })}
+                      />
+                    ) : null}
+                    <div className="flex gap-4">
+                      <Field>
+                        <FieldLabel htmlFor="paper-color">
+                          Background
+                        </FieldLabel>
+                        <Input
+                          id="paper-color"
+                          type="color"
+                          value={project.background}
+                          onChange={(e) =>
+                            change({ background: e.target.value })
                           }
-                          variant="outline"
-                        >
-                          Let the title cross the first seam
-                        </Toggle>
-                      ) : null}
-                    </>
-                  ) : null}
-                </FieldGroup>
-              </TabsContent>
-              <TabsContent value="photo" className="pt-6">
-                {photo ? (
-                  <FieldGroup>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-medium">
-                        Photo {photos.indexOf(photo) + 1}
-                      </p>
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="type-color">Text</FieldLabel>
+                        <Input
+                          id="type-color"
+                          type="color"
+                          value={project.ink}
+                          onChange={(e) => change({ ink: e.target.value })}
+                        />
+                      </Field>
+                    </div>
+                    {photo ? (
                       <Button
+                        variant="outline"
                         size="sm"
-                        variant="ghost"
                         onClick={() =>
-                          movePhoto(photo.id, {
-                            fit: "fit",
-                            scale: 1,
-                            x: 0,
-                            y: 0,
-                            shift: 0,
-                            rotation: 0,
+                          change({
+                            background: photo.colors[0],
+                            ink: photo.colors[2],
+                            treatment: "color",
                           })
                         }
                       >
-                        <RotateCcwIcon data-icon="inline-start" />
-                        Reset framing
+                        <SparklesIcon data-icon="inline-start" />
+                        Use this photo's colors
                       </Button>
-                    </div>
-                    <Choice
-                      label="Framing"
-                      value={photo.fit}
-                      options={[
-                        { value: "fit", label: "Fit · whole photo" },
-                        { value: "fill", label: "Fill · crop" },
-                      ]}
-                      onChange={(fit) =>
-                        movePhoto(photo.id, { fit, scale: 1, x: 0, y: 0 })
-                      }
-                    />
-                    <Amount
-                      label="Photo size"
-                      value={Math.round(photo.scale * 100)}
-                      min={photo.fit === "fit" ? 30 : 100}
-                      max={photo.fit === "fit" ? 100 : 300}
-                      suffix="%"
-                      onChange={(n) => movePhoto(photo.id, { scale: n / 100 })}
-                    />
-                    <Amount
-                      label="Horizontal position"
-                      value={Math.round(photo.x * 100)}
-                      min={-100}
-                      onChange={(n) => movePhoto(photo.id, { x: n / 100 })}
-                    />
-                    <Amount
-                      label="Vertical position"
-                      value={Math.round(photo.y * 100)}
-                      min={-100}
-                      onChange={(n) => movePhoto(photo.id, { y: n / 100 })}
-                    />
-                    <Choice
-                      label="Placement"
-                      value={
-                        photo.y < -0.5
-                          ? "upper"
-                          : photo.y > 0.5
-                            ? "lower"
-                            : "center"
-                      }
-                      options={[
-                        { value: "upper", label: "Upper" },
-                        { value: "center", label: "Center" },
-                        { value: "lower", label: "Lower" },
-                      ]}
-                      onChange={(v) =>
-                        movePhoto(photo.id, {
-                          y: v === "upper" ? -1 : v === "lower" ? 1 : 0,
-                        })
-                      }
-                    />
-                    <FieldDescription>
-                      Drag the photo in the preview, or use the positioning
-                      controls. Fit keeps every edge visible.
-                    </FieldDescription>
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setPhotos((items) =>
-                          items.map((p) => ({
-                            ...p,
-                            fit: photo.fit,
-                            scale: photo.scale,
-                            x: photo.x,
-                            y: photo.y,
-                          })),
-                        )
-                      }
-                    >
-                      Apply framing to all photos
-                    </Button>
-                    {project.connected && project.mode === "carousel" ? (
-                      <>
-                        <Separator />
-                        <Choice
-                          label="Photo spans"
-                          value={String(photo.span)}
-                          options={[
-                            { value: "1", label: "1 slide" },
-                            { value: "2", label: "2 slides" },
-                            { value: "3", label: "3 slides" },
-                          ]}
-                          onChange={(v) =>
-                            movePhoto(photo.id, { span: Number(v) })
-                          }
-                        />
-                        <Amount
-                          label="Shift across the seam"
-                          value={Math.round(photo.shift * 100)}
-                          min={-50}
-                          max={50}
-                          suffix="%"
-                          onChange={(n) =>
-                            movePhoto(photo.id, { shift: n / 100 })
-                          }
-                        />
-                        <Amount
-                          label="Print angle"
-                          value={photo.rotation}
-                          min={-15}
-                          max={15}
-                          suffix="°"
-                          onChange={(rotation) =>
-                            movePhoto(photo.id, { rotation })
-                          }
-                        />
-                      </>
                     ) : null}
                     <Separator />
-                    <Toggle
-                      pressed={project.atmospheric}
-                      onPressedChange={(atmospheric) => change({ atmospheric })}
-                      variant="outline"
-                    >
-                      <SparklesIcon data-icon="inline-start" />
-                      Atmospheric backdrop
-                    </Toggle>
-                    {project.atmospheric ? (
-                      <BackdropControls
-                        settings={{
-                          ...project.backdrop,
-                          photoField: photo.field,
-                        }}
-                        image={photo.image}
-                        photoColors={photo.colors}
-                        onChange={(backdrop) => change({ backdrop })}
+                    <Field>
+                      <FieldLabel htmlFor="studio-title">Title</FieldLabel>
+                      <Input
+                        id="studio-title"
+                        placeholder="A weekend worth keeping"
+                        value={project.title}
+                        onChange={(e) => change({ title: e.target.value })}
                       />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="studio-subtitle">
+                        Small print
+                      </FieldLabel>
+                      <Input
+                        id="studio-subtitle"
+                        placeholder="Somewhere good, with good people."
+                        value={project.subtitle}
+                        onChange={(e) => change({ subtitle: e.target.value })}
+                      />
+                    </Field>
+                    {project.title || project.subtitle ? (
+                      <>
+                        <Choice
+                          label="Typography"
+                          value={project.typeface}
+                          options={[
+                            { value: "sans", label: "Modern" },
+                            { value: "serif", label: "Editorial" },
+                            { value: "mono", label: "Typewriter" },
+                          ]}
+                          onChange={(typeface) => change({ typeface })}
+                        />
+                        <Amount
+                          label="Title size"
+                          value={project.titleSize}
+                          min={24}
+                          max={160}
+                          suffix=" px"
+                          onChange={(titleSize) => change({ titleSize })}
+                        />
+                        <Amount
+                          label="Text position"
+                          value={Math.round(
+                            (variant === "main"
+                              ? project.titleY
+                              : project[variant].titleY) * 100,
+                          )}
+                          max={90}
+                          suffix="%"
+                          onChange={(n) =>
+                            variant === "main"
+                              ? change({ titleY: n / 100 })
+                              : change({
+                                  [variant]: {
+                                    ...project[variant],
+                                    titleY: n / 100,
+                                  },
+                                })
+                          }
+                        />
+                        {project.connected &&
+                        project.mode === "carousel" &&
+                        variant === "main" ? (
+                          <Toggle
+                            pressed={project.titleAcross}
+                            onPressedChange={(titleAcross) =>
+                              change({ titleAcross })
+                            }
+                            variant="outline"
+                          >
+                            Let the title cross the first seam
+                          </Toggle>
+                        ) : null}
+                      </>
                     ) : null}
                   </FieldGroup>
-                ) : (
-                  <Empty>
-                    <EmptyHeader>
-                      <EmptyTitle>No photo selected yet.</EmptyTitle>
-                      <EmptyDescription>
-                        Add your photos to start framing.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                )}
-              </TabsContent>
-              <TabsContent value="sound" className="pt-6">
-                <FieldGroup>
-                  {project.mode !== "story" ? (
-                    <Alert>
-                      <AlertTitle>Give it some movement.</AlertTitle>
-                      <AlertDescription>
-                        Sound and motion apply to Story videos and animated
-                        teasers in your matching set.
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {audio?.name ?? "Your soundtrack"}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => audioInput.current?.click()}
-                    >
-                      {audio ? "Replace" : "Add audio"}
-                    </Button>
-                    {audio ? (
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        aria-label="Remove audio"
-                        onClick={() => {
-                          loadEpoch.current++;
-                          setAudio(null);
-                          setAnalysis(null);
-                          setAudioLoading(false);
-                          setTime(0);
-                        }}
-                      >
-                        <XIcon />
-                      </Button>
-                    ) : null}
-                  </div>
-                  {audioLoading ? (
-                    <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Spinner />
-                      Listening for rhythm…
-                    </p>
-                  ) : null}
-                  {audio && audioUrl ? (
-                    <AudioTimeline
-                      key={audioUrl}
-                      file={audio}
-                      url={audioUrl}
-                      analysis={analysis}
-                      duration={audioDuration}
-                      selection={selection}
-                      onDurationChange={(n) => {
-                        setAudioDuration(n);
-                        if (!audioDuration) setSelection([0, n]);
-                      }}
-                      onSelectionChange={(s) => {
-                        setSelection(s);
-                        setTime(0);
-                      }}
-                      onTimeChange={onAudioTime}
-                      onPlayingChange={onPlaying}
-                      disabled={working}
-                    />
-                  ) : (
-                    <TimeField
-                      label="Story duration"
-                      value={project.duration}
-                      onChange={(n) => {
-                        if (n > 0) change({ duration: n });
-                      }}
-                    />
-                  )}
-                  <Separator />
-                  <Choice
-                    label="Transition"
-                    value={project.transition}
-                    options={[
-                      { value: "cut", label: "Cut" },
-                      { value: "fade", label: "Dissolve" },
-                      { value: "slide", label: "Slide" },
-                    ]}
-                    onChange={(transition) => change({ transition })}
-                  />
-                  {project.transition !== "cut" ? (
-                    <Amount
-                      label="Transition length"
-                      value={project.transitionSeconds}
-                      min={0.05}
-                      max={2}
-                      step={0.05}
-                      suffix=" s"
-                      onChange={(transitionSeconds) =>
-                        change({ transitionSeconds })
-                      }
-                    />
-                  ) : null}
-                  <Toggle
-                    pressed={project.reveal}
-                    onPressedChange={(reveal) => change({ reveal })}
-                    variant="outline"
-                  >
-                    Reveal collage photos in sequence
-                  </Toggle>
-                  <Choice
-                    label="Camera motion"
-                    value={project.motion}
-                    options={MOTIONS}
-                    onChange={(motion) => change({ motion })}
-                  />
-                  {project.motion !== "none" ? (
-                    <Amount
-                      label="Motion intensity"
-                      value={project.motionStrength}
-                      suffix="%"
-                      onChange={(motionStrength) => change({ motionStrength })}
-                    />
-                  ) : null}
-                  <FieldDescription>
-                    Camera motion applies to Fill photos and Photo blur.
-                    Abstract backdrops move independently of your sharp photo.
-                  </FieldDescription>
-                  <Separator />
-                  <Amount
-                    label="Music reactivity"
-                    value={project.reactive}
-                    suffix="%"
-                    onChange={(reactive) =>
-                      change({
-                        reactive,
-                        ...(reactive > 0 ? { atmospheric: true } : {}),
-                      })
-                    }
-                  />
-                  {project.reactive > 0 ? (
-                    <>
-                      <Choice
-                        label="React to"
-                        value={project.reaction}
-                        options={[
-                          { value: "bass", label: "Bass" },
-                          { value: "percussion", label: "Percussion" },
-                          { value: "energy", label: "Energy" },
-                        ]}
-                        onChange={(reaction) => change({ reaction })}
-                      />
-                      <FieldDescription>
-                        {analysis
-                          ? "The backdrop follows your audio. Lower values keep the response subtle."
-                          : "Add an audio file to drive the background with real sound."}
-                      </FieldDescription>
-                    </>
-                  ) : null}
-                  {scenes > 1 ? (
-                    <>
-                      <Separator />
+                </TabsContent>
+                <TabsContent value="photo" className="pt-3">
+                  {photo ? (
+                    <FieldGroup>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">
-                          Photo timing
-                        </span>
+                        <p className="truncate text-sm font-medium">
+                          Photo {photos.indexOf(photo) + 1}
+                        </p>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => change({ cuts: [] })}
-                        >
-                          Even spacing
-                        </Button>
-                      </div>
-                      <Button
-                        variant="outline"
-                        disabled={!analysis?.beats.length || duration <= 0}
-                        onClick={() => {
-                          if (analysis)
-                            change({
-                              cuts: snapCutsToBeats(
-                                project,
-                                scenes,
-                                analysis.beats,
-                                selection[0],
-                                duration,
-                              ),
-                            });
-                        }}
-                      >
-                        <AudioLinesIcon data-icon="inline-start" />
-                        Snap changes to detected beats
-                      </Button>
-                      <FieldDescription>
-                        Times are relative to the start of your selected audio.
-                        Fine-tune any change below.
-                      </FieldDescription>
-                      {cuts.slice(1, -1).map((cut, i) => (
-                        <TimeField
-                          key={
-                            photos[(i + 1) * capacity(project.layout)]?.id ?? i
-                          }
-                          label={`Scene ${i + 2} starts at`}
-                          value={cut * duration}
-                          onChange={(seconds) =>
-                            change({
-                              cuts: updateCut(
-                                project,
-                                scenes,
-                                i + 1,
-                                seconds,
-                                duration,
-                              ),
+                          onClick={() =>
+                            movePhoto(photo.id, {
+                              fit: "fit",
+                              scale: 1,
+                              x: 0,
+                              y: 0,
+                              shift: 0,
+                              rotation: 0,
                             })
                           }
+                        >
+                          <RotateCcwIcon data-icon="inline-start" />
+                          Reset framing
+                        </Button>
+                      </div>
+                      <Choice
+                        label="Framing"
+                        value={photo.fit}
+                        options={[
+                          { value: "fit", label: "Fit · whole photo" },
+                          { value: "fill", label: "Fill · crop" },
+                        ]}
+                        onChange={(fit) =>
+                          movePhoto(photo.id, { fit, scale: 1, x: 0, y: 0 })
+                        }
+                      />
+                      <Amount
+                        label="Photo size"
+                        value={Math.round(photo.scale * 100)}
+                        min={photo.fit === "fit" ? 30 : 100}
+                        max={photo.fit === "fit" ? 100 : 300}
+                        suffix="%"
+                        onChange={(n) =>
+                          movePhoto(photo.id, { scale: n / 100 })
+                        }
+                      />
+                      <Amount
+                        label="Horizontal position"
+                        value={Math.round(photo.x * 100)}
+                        min={-100}
+                        onChange={(n) => movePhoto(photo.id, { x: n / 100 })}
+                      />
+                      <Amount
+                        label="Vertical position"
+                        value={Math.round(photo.y * 100)}
+                        min={-100}
+                        onChange={(n) => movePhoto(photo.id, { y: n / 100 })}
+                      />
+                      <Choice
+                        label="Placement"
+                        value={
+                          photo.y < -0.5
+                            ? "upper"
+                            : photo.y > 0.5
+                              ? "lower"
+                              : "center"
+                        }
+                        options={[
+                          { value: "upper", label: "Upper" },
+                          { value: "center", label: "Center" },
+                          { value: "lower", label: "Lower" },
+                        ]}
+                        onChange={(v) =>
+                          movePhoto(photo.id, {
+                            y: v === "upper" ? -1 : v === "lower" ? 1 : 0,
+                          })
+                        }
+                      />
+                      <FieldDescription>
+                        Drag the photo in the preview, or use the positioning
+                        controls. Fit keeps every edge visible.
+                      </FieldDescription>
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          setPhotos((items) =>
+                            items.map((p) => ({
+                              ...p,
+                              fit: photo.fit,
+                              scale: photo.scale,
+                              x: photo.x,
+                              y: photo.y,
+                            })),
+                          )
+                        }
+                      >
+                        Apply framing to all photos
+                      </Button>
+                      {project.connected && project.mode === "carousel" ? (
+                        <>
+                          <Separator />
+                          <Choice
+                            label="Photo spans"
+                            value={String(photo.span)}
+                            options={[
+                              { value: "1", label: "1 slide" },
+                              { value: "2", label: "2 slides" },
+                              { value: "3", label: "3 slides" },
+                            ]}
+                            onChange={(v) =>
+                              movePhoto(photo.id, { span: Number(v) })
+                            }
+                          />
+                          <Amount
+                            label="Shift across the seam"
+                            value={Math.round(photo.shift * 100)}
+                            min={-50}
+                            max={50}
+                            suffix="%"
+                            onChange={(n) =>
+                              movePhoto(photo.id, { shift: n / 100 })
+                            }
+                          />
+                          <Amount
+                            label="Print angle"
+                            value={photo.rotation}
+                            min={-15}
+                            max={15}
+                            suffix="°"
+                            onChange={(rotation) =>
+                              movePhoto(photo.id, { rotation })
+                            }
+                          />
+                        </>
+                      ) : null}
+                      <Separator />
+                      <Toggle
+                        pressed={project.atmospheric}
+                        onPressedChange={(atmospheric) =>
+                          change({ atmospheric })
+                        }
+                        variant="outline"
+                      >
+                        <SparklesIcon data-icon="inline-start" />
+                        Atmospheric backdrop
+                      </Toggle>
+                      {project.atmospheric ? (
+                        <BackdropControls
+                          settings={{
+                            ...project.backdrop,
+                            photoField: photo.field,
+                          }}
+                          image={photo.image}
+                          photoColors={photo.colors}
+                          onChange={(backdrop) => change({ backdrop })}
                         />
-                      ))}
-                    </>
-                  ) : null}
-                </FieldGroup>
-              </TabsContent>
-            </Tabs>
-          </fieldset>
+                      ) : null}
+                    </FieldGroup>
+                  ) : (
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyTitle>No photo selected yet.</EmptyTitle>
+                        <EmptyDescription>
+                          Add your photos to start framing.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  )}
+                </TabsContent>
+                <TabsContent value="sound" className="pt-3">
+                  <FieldGroup>
+                    {project.mode !== "story" ? (
+                      <Alert>
+                        <AlertTitle>Give it some movement.</AlertTitle>
+                        <AlertDescription>
+                          Sound and motion apply to Story videos and animated
+                          teasers in your matching set.
+                        </AlertDescription>
+                      </Alert>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {audio?.name ?? "Your soundtrack"}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => audioInput.current?.click()}
+                      >
+                        {audio ? "Replace" : "Add audio"}
+                      </Button>
+                      {audio ? (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Remove audio"
+                          onClick={() => {
+                            loadEpoch.current++;
+                            setAudio(null);
+                            setAnalysis(null);
+                            setAudioLoading(false);
+                            setTime(0);
+                          }}
+                        >
+                          <XIcon />
+                        </Button>
+                      ) : null}
+                    </div>
+                    {audioLoading ? (
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Spinner />
+                        Listening for rhythm…
+                      </p>
+                    ) : null}
+                    {audio && audioUrl ? (
+                      <AudioTimeline
+                        key={audioUrl}
+                        file={audio}
+                        url={audioUrl}
+                        analysis={analysis}
+                        duration={audioDuration}
+                        selection={selection}
+                        onDurationChange={(n) => {
+                          setAudioDuration(n);
+                          if (!audioDuration) setSelection([0, n]);
+                        }}
+                        onSelectionChange={(s) => {
+                          setSelection(s);
+                          setTime(0);
+                        }}
+                        onTimeChange={onAudioTime}
+                        onPlayingChange={onPlaying}
+                        disabled={working}
+                      />
+                    ) : (
+                      <TimeField
+                        label="Story duration"
+                        value={project.duration}
+                        onChange={(n) => {
+                          if (n > 0) change({ duration: n });
+                        }}
+                      />
+                    )}
+                    <Separator />
+                    <Choice
+                      label="Transition"
+                      value={project.transition}
+                      options={[
+                        { value: "cut", label: "Cut" },
+                        { value: "fade", label: "Dissolve" },
+                        { value: "slide", label: "Slide" },
+                      ]}
+                      onChange={(transition) => change({ transition })}
+                    />
+                    {project.transition !== "cut" ? (
+                      <Amount
+                        label="Transition length"
+                        value={project.transitionSeconds}
+                        min={0.05}
+                        max={2}
+                        step={0.05}
+                        suffix=" s"
+                        onChange={(transitionSeconds) =>
+                          change({ transitionSeconds })
+                        }
+                      />
+                    ) : null}
+                    <Toggle
+                      pressed={project.reveal}
+                      onPressedChange={(reveal) => change({ reveal })}
+                      variant="outline"
+                    >
+                      Reveal collage photos in sequence
+                    </Toggle>
+                    <Choice
+                      label="Camera motion"
+                      value={project.motion}
+                      options={MOTIONS}
+                      onChange={(motion) => change({ motion })}
+                    />
+                    {project.motion !== "none" ? (
+                      <Amount
+                        label="Motion intensity"
+                        value={project.motionStrength}
+                        suffix="%"
+                        onChange={(motionStrength) =>
+                          change({ motionStrength })
+                        }
+                      />
+                    ) : null}
+                    <FieldDescription>
+                      Camera motion applies to Fill photos and Photo blur.
+                      Abstract backdrops move independently of your sharp photo.
+                    </FieldDescription>
+                    <Separator />
+                    <Amount
+                      label="Music reactivity"
+                      value={project.reactive}
+                      suffix="%"
+                      onChange={(reactive) =>
+                        change({
+                          reactive,
+                          ...(reactive > 0 ? { atmospheric: true } : {}),
+                        })
+                      }
+                    />
+                    {project.reactive > 0 ? (
+                      <>
+                        <Choice
+                          label="React to"
+                          value={project.reaction}
+                          options={[
+                            { value: "bass", label: "Bass" },
+                            { value: "percussion", label: "Percussion" },
+                            { value: "energy", label: "Energy" },
+                          ]}
+                          onChange={(reaction) => change({ reaction })}
+                        />
+                        <FieldDescription>
+                          {analysis
+                            ? "The backdrop follows your audio. Lower values keep the response subtle."
+                            : "Add an audio file to drive the background with real sound."}
+                        </FieldDescription>
+                      </>
+                    ) : null}
+                    {scenes > 1 ? (
+                      <>
+                        <Separator />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">
+                            Photo timing
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => change({ cuts: [] })}
+                          >
+                            Even spacing
+                          </Button>
+                        </div>
+                        <Button
+                          variant="outline"
+                          disabled={!analysis?.beats.length || duration <= 0}
+                          onClick={() => {
+                            if (analysis)
+                              change({
+                                cuts: snapCutsToBeats(
+                                  project,
+                                  scenes,
+                                  analysis.beats,
+                                  selection[0],
+                                  duration,
+                                ),
+                              });
+                          }}
+                        >
+                          <AudioLinesIcon data-icon="inline-start" />
+                          Snap changes to detected beats
+                        </Button>
+                        <FieldDescription>
+                          Times are relative to the start of your selected
+                          audio. Fine-tune any change below.
+                        </FieldDescription>
+                        {cuts.slice(1, -1).map((cut, i) => (
+                          <TimeField
+                            key={
+                              photos[(i + 1) * capacity(project.layout)]?.id ??
+                              i
+                            }
+                            label={`Scene ${i + 2} starts at`}
+                            value={cut * duration}
+                            onChange={(seconds) =>
+                              change({
+                                cuts: updateCut(
+                                  project,
+                                  scenes,
+                                  i + 1,
+                                  seconds,
+                                  duration,
+                                ),
+                              })
+                            }
+                          />
+                        ))}
+                      </>
+                    ) : null}
+                  </FieldGroup>
+                </TabsContent>
+              </Tabs>
+            </fieldset>
+          </div>
           <div className="studio-export">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium">Ready when you are.</p>
+              <p className="font-display text-xl italic">Ready when you are.</p>
               <Badge variant="secondary">No watermark</Badge>
             </div>
             <Button
               size="lg"
+              className="studio-export-cta"
               disabled={
                 !ready ||
                 working ||
@@ -1545,9 +1596,9 @@ export function SonoraStudio() {
             </Button>
             <details className="matching-set">
               <summary>
-                Make a matching set <span>↗</span>
+                Make a matching set <ChevronDownIcon className="size-4" />
               </summary>
-              <div className="flex flex-col gap-3 pt-4">
+              <div className="flex flex-col gap-3">
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   All your slides, a cover, and a story teaser in one download.
                   Use the preview tabs to adjust each version.
@@ -1596,7 +1647,7 @@ export function SonoraStudio() {
               </output>
             ) : null}
             {result ? (
-              <Alert>
+              <Alert className="studio-result">
                 <CheckIcon />
                 <AlertTitle>Your export is ready.</AlertTitle>
                 <AlertDescription>
@@ -1638,17 +1689,19 @@ export function SonoraStudio() {
                 </AlertDescription>
               </Alert>
             ) : null}
+            {error ? (
+              <Alert variant="destructive">
+                <AlertTitle>Something needs attention</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
-          {error ? (
-            <Alert variant="destructive" className="mt-4">
-              <AlertTitle>Something needs attention</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
         </aside>
       </div>
       <footer className="studio-footer">
-        <span>Made for the moments between the big moments.</span>
+        <span>
+          <em>Made for the moments</em> between the big moments.
+        </span>
         <span>No accounts. No uploads. Just your browser.</span>
       </footer>
     </main>

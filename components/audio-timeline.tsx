@@ -255,7 +255,7 @@ export function AudioTimeline({
             Drag both handles. There is no imposed duration limit.
           </FieldDescription>
         </div>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+        <span className="studio-value shrink-0 tabular-nums">
           {formatTime(selectionDuration)} selected
         </span>
       </div>
@@ -264,7 +264,7 @@ export function AudioTimeline({
         <Button
           type="button"
           size="icon-lg"
-          variant="outline"
+          className="size-12 rounded-full"
           aria-label={
             isPlaying ? "Pause selected audio" : "Play selected audio"
           }
@@ -276,7 +276,7 @@ export function AudioTimeline({
 
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div
-            className="relative h-20 cursor-pointer overflow-hidden rounded-lg bg-muted px-2"
+            className="relative h-20 cursor-pointer overflow-hidden rounded-xl bg-black/30 px-2 ring-1 ring-border ring-inset"
             onPointerDown={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
               const nextTime =
@@ -301,15 +301,20 @@ export function AudioTimeline({
                     key={percent}
                     className={cn(
                       "min-w-px flex-1 rounded-full transition-colors",
-                      selected ? "bg-foreground/75" : "bg-foreground/20",
+                      !selected && "bg-foreground/15",
                     )}
-                    style={{ height: `${Math.max(10, height * 92)}%` }}
+                    style={{
+                      height: `${Math.max(10, height * 92)}%`,
+                      backgroundColor: selected
+                        ? `color-mix(in oklab, var(--hot-1), var(--hot-3) ${percent}%)`
+                        : undefined,
+                    }}
                   />
                 );
               })}
             </div>
             <div
-              className="pointer-events-none absolute inset-y-0 w-px bg-primary"
+              className="pointer-events-none absolute inset-y-0 w-0.5 rounded-full bg-foreground shadow-[0_0_10px_var(--foreground)]"
               style={{ left: `${playheadPercent}%` }}
             />
             {waveformUnavailable ? (

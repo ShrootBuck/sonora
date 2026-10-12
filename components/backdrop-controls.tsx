@@ -90,7 +90,7 @@ function BackdropSwatch({
       ref={ref}
       width={120}
       height={68}
-      className="h-12 w-full rounded-sm"
+      className="h-12 w-full rounded-md"
       role="img"
       aria-label={`${settings.style} preview`}
     />
@@ -114,9 +114,7 @@ function Amount({
     <Field>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        <span className="font-mono text-xs text-muted-foreground">
-          {value}%
-        </span>
+        <span className="studio-value">{value}%</span>
       </div>
       <Slider
         id={id}
