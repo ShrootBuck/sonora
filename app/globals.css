@@ -127,10 +127,36 @@
   ::selection {
     background: rgb(255 79 123 / 0.35);
   }
+  :is(
+      button,
+      a[href],
+      summary,
+      select,
+      input[type="button"],
+      input[type="submit"],
+      input[type="reset"],
+      input[type="checkbox"],
+      input[type="radio"],
+      input[type="range"],
+      input[type="color"],
+      input[type="file"],
+      [role="button"],
+      [role="tab"],
+      [role="checkbox"],
+      [role="radio"],
+      [role="switch"],
+      [role="menuitem"],
+      [role="option"],
+      [data-slot="slider"]
+    ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+  }
+  input[type="file"]:enabled::file-selector-button {
+    cursor: pointer;
+  }
   input[type="color"] {
     height: 2.25rem;
     padding: 3px;
-    cursor: pointer;
   }
   input[type="color"]::-webkit-color-swatch-wrapper {
     padding: 0;
