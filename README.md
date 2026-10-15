@@ -42,6 +42,29 @@ numbered in posting order.
   320 kbps, 48 kHz stereo. A fractional final video frame can extend by less than
   1/60 second beyond the selected audio endpoint.
 
+### Lyrics
+
+Open **Lyrics** to search LRCLIB for free, paste one phrase per line, or import
+LRC, enhanced LRC, lyricsfile YAML, or saved Sonora edits. Lookup sends only the
+search text to LRCLIB; media stays on your device. No API key or paid service is
+used. Catalog coverage varies. Line-synced and untimed lyrics get clearly marked
+word timing estimates that you can replace by ear.
+
+Select a word, seek to its onset, and **Align this word to playhead**. This shifts
+the whole lyric track while preserving its relative timing. Word times use the
+original audio file's clock and do not stretch when you trim the story.
+
+- Drag word blocks or their edges, type millisecond timestamps, or tap along.
+- Nudge one word, one phrase, everything from the selected word, or all lyrics.
+- Loop a phrase and listen at 0.5× or 0.75×; exports use normal playback speed.
+- Edit text, split/join phrases, hold an ending, and undo or redo changes.
+- Choose Fade, Float, Pop, Stamp, Karaoke, or Solo; adjust type, colors, size,
+  entrance duration, placement, and backing. Preview and export share the renderer.
+- Save the lyric edits as a local JSON file and import it to resume later. This
+  saves timing and appearance, not your audio or photos.
+
+Lyrics appear in stories and story teasers, and stay out of feed posts and covers.
+
 ### Matching sets
 
 Adjust **Composition**, **Story teaser**, and **Cover** in the preview tabs.

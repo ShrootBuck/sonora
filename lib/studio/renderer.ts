@@ -6,6 +6,7 @@ import {
 } from "@/lib/media/backdrop-painter";
 import { getMotionTransform, motionLoopSeconds } from "@/lib/media/composition";
 import { type AudioAnalysis, audioLevel } from "./audio";
+import { createLyricRenderer } from "./lyric-renderer";
 import {
   capacity,
   clamp,
@@ -93,6 +94,10 @@ export async function createStudioRenderer(
   const connected =
     project.mode === "carousel" && project.connected && variant === "main";
   const animated = project.mode === "story" || variant === "teaser";
+  const lyrics =
+    animated && variant !== "cover" && project.lyrics.lines.length
+      ? createLyricRenderer(layer, project.lyrics, width, height)
+      : null;
   const totalPages = pageCount(project, photos);
   const layout = variant === "main" ? project.layout : project[variant].layout;
   const typeface =
@@ -445,7 +450,8 @@ export async function createStudioRenderer(
       : `${scene.scene}-${scene.mix > 0}`;
     if (key !== nextKey) {
       key = nextKey;
-      layer.destroyChildren();
+      active?.destroy();
+      upcoming?.destroy();
       moving = [];
       reactiveOverlays = [];
       active = connected ? buildStrip(page) : buildScene(scene.scene);
@@ -519,6 +525,7 @@ export async function createStudioRenderer(
       node.scale({ x: scale, y: scale });
       node.rotation((motion.rotation * 180) / Math.PI);
     }
+    lyrics?.draw(audioStart + time);
     layer.draw();
   }
   return {

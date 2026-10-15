@@ -1,7 +1,14 @@
 "use client";
 
 import { AudioWaveformIcon, PauseIcon, PlayIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +25,15 @@ import { cn } from "@/lib/utils";
 
 export { formatTime, parseTime } from "@/lib/media/time";
 
+export type AudioTransport = {
+  time: () => number;
+  seek: (time: number) => void;
+  toggle: () => Promise<void>;
+  pause: () => void;
+  setRate: (rate: number) => void;
+  setLoop: (range: [number, number] | null) => void;
+};
+
 type AudioTimelineProps = {
   file: File;
   url: string;
@@ -29,6 +45,7 @@ type AudioTimelineProps = {
   onTimeChange?: (time: number) => void;
   onPlayingChange?: (playing: boolean) => void;
   disabled?: boolean;
+  transportRef?: Ref<AudioTransport>;
 };
 
 const WAVEFORM_BARS = 144;
@@ -87,6 +104,7 @@ export function AudioTimeline({
   onTimeChange,
   onPlayingChange,
   disabled = false,
+  transportRef,
 }: AudioTimelineProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -94,6 +112,10 @@ export function AudioTimeline({
   const [currentTime, setCurrentTime] = useState(selection[0]);
   const [waveform, setWaveform] = useState<number[]>([]);
   const [waveformUnavailable, setWaveformUnavailable] = useState(false);
+  const loopRef = useRef<[number, number] | null>(null);
+  const playEpoch = useRef(0);
+  const live = useRef({ selection, disabled, onTimeChange });
+  live.current = { selection, disabled, onTimeChange };
 
   useEffect(() => {
     if (analysis !== undefined) return;
@@ -146,6 +168,7 @@ export function AudioTimeline({
 
   useEffect(() => {
     if (disabled) {
+      playEpoch.current++;
       audioRef.current?.pause();
       setIsPlaying(false);
       if (animationRef.current !== null)
@@ -159,6 +182,8 @@ export function AudioTimeline({
   }, [isPlaying, onPlayingChange]);
 
   useEffect(() => {
+    playEpoch.current++;
+    loopRef.current = null;
     setCurrentTime(selection[0]);
     setIsPlaying(false);
     if (animationRef.current !== null)
@@ -171,6 +196,7 @@ export function AudioTimeline({
 
   useEffect(() => {
     return () => {
+      playEpoch.current++;
       if (animationRef.current !== null) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -199,6 +225,7 @@ export function AudioTimeline({
     analysis?.waveform ?? (waveform.length ? waveform : fallbackWaveform);
 
   const stopPlayback = (reset = false) => {
+    playEpoch.current++;
     const audio = audioRef.current;
     if (animationRef.current !== null) {
       cancelAnimationFrame(animationRef.current);
@@ -207,44 +234,95 @@ export function AudioTimeline({
     audio?.pause();
     setIsPlaying(false);
     if (reset && audio) {
-      audio.currentTime = selection[0];
-      setCurrentTime(selection[0]);
-      onTimeChange?.(selection[0]);
+      audio.currentTime = live.current.selection[0];
+      setCurrentTime(audio.currentTime);
+      live.current.onTimeChange?.(audio.currentTime);
+    } else if (audio) {
+      setCurrentTime(audio.currentTime);
+      live.current.onTimeChange?.(audio.currentTime);
     }
   };
 
   const tick = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.currentTime >= selection[1] || audio.ended) {
+    const bounds = live.current.selection;
+    const loop = loopRef.current;
+    if (
+      loop &&
+      loop[1] > loop[0] &&
+      (audio.currentTime >= loop[1] || audio.currentTime < loop[0])
+    ) {
+      audio.currentTime = loop[0];
+    } else if (audio.currentTime >= bounds[1] || audio.ended) {
       stopPlayback(true);
       return;
     }
     setCurrentTime(audio.currentTime);
-    onTimeChange?.(audio.currentTime);
+    live.current.onTimeChange?.(audio.currentTime);
     animationRef.current = requestAnimationFrame(tick);
   };
 
   const togglePlayback = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
-    if (isPlaying) {
+    if (
+      !audio ||
+      live.current.disabled ||
+      live.current.selection[1] <= live.current.selection[0]
+    )
+      return;
+    if (!audio.paused) {
       stopPlayback();
       return;
     }
 
-    if (audio.currentTime < selection[0] || audio.currentTime >= selection[1]) {
-      audio.currentTime = selection[0];
+    const bounds = loopRef.current ?? live.current.selection;
+    if (audio.currentTime < bounds[0] || audio.currentTime >= bounds[1]) {
+      audio.currentTime = bounds[0];
     }
+    const epoch = ++playEpoch.current;
     try {
       await audio.play();
     } catch {
       setIsPlaying(false);
       return;
     }
+    if (epoch !== playEpoch.current) {
+      audio.pause();
+      return;
+    }
     setIsPlaying(true);
+    if (animationRef.current !== null)
+      cancelAnimationFrame(animationRef.current);
     animationRef.current = requestAnimationFrame(tick);
   };
+
+  const seek = (seconds: number) => {
+    const bounds = live.current.selection;
+    const next = Math.max(bounds[0], Math.min(bounds[1], seconds));
+    if (audioRef.current) audioRef.current.currentTime = next;
+    setCurrentTime(next);
+    live.current.onTimeChange?.(next);
+  };
+
+  useImperativeHandle(transportRef, () => ({
+    time: () => audioRef.current?.currentTime ?? live.current.selection[0],
+    seek,
+    toggle: togglePlayback,
+    pause: stopPlayback,
+    setRate(rate) {
+      if (audioRef.current) audioRef.current.playbackRate = rate;
+    },
+    setLoop(range) {
+      if (!range) {
+        loopRef.current = null;
+        return;
+      }
+      const start = Math.max(live.current.selection[0], range[0]);
+      const end = Math.min(live.current.selection[1], range[1]);
+      loopRef.current = end > start ? [start, end] : null;
+    },
+  }));
 
   return (
     <Field>
@@ -282,10 +360,7 @@ export function AudioTimeline({
               const rect = event.currentTarget.getBoundingClientRect();
               const nextTime =
                 ((event.clientX - rect.left) / rect.width) * duration;
-              const audio = audioRef.current;
-              if (audio) audio.currentTime = nextTime;
-              setCurrentTime(nextTime);
-              onTimeChange?.(nextTime);
+              if (!disabled) seek(nextTime);
             }}
           >
             <div
@@ -382,7 +457,12 @@ export function AudioTimeline({
           const nextDuration = event.currentTarget.duration;
           if (Number.isFinite(nextDuration)) onDurationChange(nextDuration);
         }}
-        onEnded={() => stopPlayback(true)}
+        onEnded={() => {
+          if (loopRef.current && !live.current.disabled) {
+            seek(loopRef.current[0]);
+            void togglePlayback();
+          } else stopPlayback(true);
+        }}
       />
     </Field>
   );

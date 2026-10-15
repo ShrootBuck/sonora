@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   AudioLinesIcon,
+  CaptionsIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -32,8 +33,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { AudioTimeline, formatTime } from "@/components/audio-timeline";
+import {
+  AudioTimeline,
+  type AudioTransport,
+  formatTime,
+} from "@/components/audio-timeline";
 import { BackdropControls } from "@/components/backdrop-controls";
+import { LyricsEditor } from "@/components/lyrics-editor";
 import {
   AspectArt,
   CarouselArt,
@@ -150,6 +156,7 @@ export function SonoraStudio() {
   const [dragging, setDragging] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
+  const audioTransport = useRef<AudioTransport | null>(null);
   const resources = useRef(new Map<string, Photo>());
   const controller = useRef<AbortController | null>(null);
   const alive = useRef(true);
@@ -189,6 +196,11 @@ export function SonoraStudio() {
     },
     [selection, duration],
   );
+  const seekAudio = (sourceTime: number) => {
+    setAnimate(false);
+    if (audioTransport.current) audioTransport.current.seek(sourceTime);
+    else setTime(clamp(sourceTime, 0, duration));
+  };
 
   useEffect(() => {
     alive.current = true;
@@ -561,7 +573,7 @@ export function SonoraStudio() {
                 time={time}
                 duration={duration || project.duration}
                 analysis={analysis}
-                audioStart={selection[0]}
+                audioStart={audio ? selection[0] : 0}
                 animate={animate && !working && !playing}
                 guides={guides}
                 selected={selected}
@@ -657,20 +669,23 @@ export function SonoraStudio() {
               </div>
             ) : null}
             {photos.length > 0 &&
-            (project.mode === "story" || variant === "teaser") &&
-            !audio ? (
+            (project.mode === "story" || variant === "teaser") ? (
               <Button
                 size="sm"
                 variant="ghost"
                 disabled={working}
-                onClick={() => setAnimate((v) => !v)}
+                onClick={() =>
+                  audio
+                    ? void audioTransport.current?.toggle()
+                    : setAnimate((v) => !v)
+                }
               >
-                {animate ? (
+                {animate || playing ? (
                   <PauseIcon data-icon="inline-start" />
                 ) : (
                   <PlayIcon data-icon="inline-start" />
                 )}
-                Preview motion
+                {audio ? "Preview with audio" : "Preview motion"}
               </Button>
             ) : null}
           </div>
@@ -850,8 +865,7 @@ export function SonoraStudio() {
                 disabled={working || playing}
                 onValueChange={(v) => {
                   if (typeof v === "number") {
-                    setTime(v);
-                    setAnimate(false);
+                    seekAudio((audio ? selection[0] : 0) + v);
                   }
                 }}
               />
@@ -867,8 +881,9 @@ export function SonoraStudio() {
                     style={{ flex: cuts[i + 1] - cuts[i] }}
                     disabled={working || playing}
                     onClick={() => {
-                      setTime(cuts[i] * duration);
-                      setAnimate(false);
+                      seekAudio(
+                        (audio ? selection[0] : 0) + cuts[i] * duration,
+                      );
                     }}
                     aria-label={`Preview scene ${i + 1}`}
                   >
@@ -905,9 +920,89 @@ export function SonoraStudio() {
                     </TabsTrigger>
                     <TabsTrigger value="sound">
                       <Music2Icon />
-                      Sound & motion
+                      Sound
+                    </TabsTrigger>
+                    <TabsTrigger value="lyrics">
+                      <CaptionsIcon />
+                      Lyrics
                     </TabsTrigger>
                   </TabsList>
+                </div>
+                {/* Keep the single audio element mounted across inspector tabs. */}
+                <div hidden={panel !== "sound"} className="pt-3">
+                  <FieldGroup>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {audio?.name ?? "Your soundtrack"}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => audioInput.current?.click()}
+                      >
+                        {audio ? "Replace" : "Add audio"}
+                      </Button>
+                      {audio ? (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label="Remove audio"
+                          onClick={() => {
+                            loadEpoch.current++;
+                            setAudio(null);
+                            setAnalysis(null);
+                            setAudioLoading(false);
+                            setTime(0);
+                          }}
+                        >
+                          <XIcon />
+                        </Button>
+                      ) : null}
+                    </div>
+                    {!audio ? (
+                      <FieldDescription className="-mt-3">
+                        Pick a song or sound from your device. The story plays
+                        the part you select, and it never leaves your device.
+                      </FieldDescription>
+                    ) : null}
+                    {audioLoading ? (
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Spinner />
+                        Listening for rhythm…
+                      </p>
+                    ) : null}
+                    {audio && audioUrl ? (
+                      <AudioTimeline
+                        key={audioUrl}
+                        transportRef={audioTransport}
+                        file={audio}
+                        url={audioUrl}
+                        analysis={analysis}
+                        duration={audioDuration}
+                        selection={selection}
+                        onDurationChange={(n) => {
+                          setAudioDuration(n);
+                          if (!audioDuration) setSelection([0, n]);
+                        }}
+                        onSelectionChange={(s) => {
+                          setSelection(s);
+                          setTime(0);
+                        }}
+                        onTimeChange={onAudioTime}
+                        onPlayingChange={onPlaying}
+                        disabled={working}
+                      />
+                    ) : (
+                      <TimeField
+                        label="Story duration"
+                        hint="How long the video runs. Type seconds (12) or minutes:seconds (1:05.5)."
+                        value={project.duration}
+                        onChange={(n) => {
+                          if (n > 0) change({ duration: n });
+                        }}
+                      />
+                    )}
+                  </FieldGroup>
                 </div>
                 <TabsContent value="style" className="pt-3">
                   <FieldGroup>
@@ -1378,76 +1473,6 @@ export function SonoraStudio() {
                         </AlertDescription>
                       </Alert>
                     ) : null}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {audio?.name ?? "Your soundtrack"}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => audioInput.current?.click()}
-                      >
-                        {audio ? "Replace" : "Add audio"}
-                      </Button>
-                      {audio ? (
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label="Remove audio"
-                          onClick={() => {
-                            loadEpoch.current++;
-                            setAudio(null);
-                            setAnalysis(null);
-                            setAudioLoading(false);
-                            setTime(0);
-                          }}
-                        >
-                          <XIcon />
-                        </Button>
-                      ) : null}
-                    </div>
-                    {!audio ? (
-                      <FieldDescription className="-mt-3">
-                        Pick a song or sound from your device. The story plays
-                        the part you select, and it never leaves your device.
-                      </FieldDescription>
-                    ) : null}
-                    {audioLoading ? (
-                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Spinner />
-                        Listening for rhythm…
-                      </p>
-                    ) : null}
-                    {audio && audioUrl ? (
-                      <AudioTimeline
-                        key={audioUrl}
-                        file={audio}
-                        url={audioUrl}
-                        analysis={analysis}
-                        duration={audioDuration}
-                        selection={selection}
-                        onDurationChange={(n) => {
-                          setAudioDuration(n);
-                          if (!audioDuration) setSelection([0, n]);
-                        }}
-                        onSelectionChange={(s) => {
-                          setSelection(s);
-                          setTime(0);
-                        }}
-                        onTimeChange={onAudioTime}
-                        onPlayingChange={onPlaying}
-                        disabled={working}
-                      />
-                    ) : (
-                      <TimeField
-                        label="Story duration"
-                        hint="How long the video runs. Type seconds (12) or minutes:seconds (1:05.5)."
-                        value={project.duration}
-                        onChange={(n) => {
-                          if (n > 0) change({ duration: n });
-                        }}
-                      />
-                    )}
                     <Separator />
                     <Choice
                       label="Transition"
@@ -1607,6 +1632,30 @@ export function SonoraStudio() {
                       </>
                     ) : null}
                   </FieldGroup>
+                </TabsContent>
+                <TabsContent value="lyrics" keepMounted className="pt-3">
+                  <LyricsEditor
+                    track={project.lyrics}
+                    onChange={(lyrics) => change({ lyrics })}
+                    transport={audioTransport}
+                    range={audio ? selection : [0, duration]}
+                    time={(audio ? selection[0] : 0) + time}
+                    audio={audio}
+                    analysis={analysis}
+                    playing={playing}
+                    active={panel === "lyrics"}
+                    disabled={working}
+                    isStory={
+                      (project.mode === "story" && variant !== "cover") ||
+                      variant === "teaser"
+                    }
+                    onAddAudio={() => audioInput.current?.click()}
+                    onSeek={seekAudio}
+                    onStory={() => {
+                      change({ mode: "story" });
+                      setVariant("main");
+                    }}
+                  />
                 </TabsContent>
               </Tabs>
             </fieldset>

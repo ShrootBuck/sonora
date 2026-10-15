@@ -4,6 +4,7 @@ import {
   type MotionPreset,
 } from "@/lib/media/composition";
 import type { LoadedImage } from "@/lib/media/load-image";
+import { EMPTY_LYRICS, type LyricTrack } from "./lyrics";
 
 export type Mode = "post" | "carousel" | "story";
 export type Aspect = "portrait" | "tall" | "square" | "landscape" | "story";
@@ -56,6 +57,7 @@ export type Project = {
   reaction: "bass" | "percussion" | "energy";
   duration: number;
   cuts: number[];
+  lyrics: LyricTrack;
   teaser: VariantSettings;
   cover: VariantSettings;
 };
@@ -86,6 +88,7 @@ export const INITIAL_PROJECT: Project = {
   reaction: "bass",
   duration: 12,
   cuts: [],
+  lyrics: EMPTY_LYRICS,
   teaser: { layout: "editorial", scale: 0.9, titleY: 0.82 },
   cover: { layout: "single", scale: 0.9, titleY: 0.82 },
 };
