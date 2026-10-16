@@ -18,7 +18,6 @@ import type { AudioTransport } from "@/components/audio-timeline";
 import { LyricTimeline } from "@/components/lyric-timeline";
 import { Amount, Choice } from "@/components/studio-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -294,9 +293,7 @@ export function LyricsEditor({
     setWordIndex(0);
     setTap(null);
     setLoop(false);
-    setNotice(
-      "Lyrics loaded. Select a word and align it to the playhead to set your starting point.",
-    );
+    setNotice("");
     setError("");
   };
   const importText = async (text: string, name: string) => {
@@ -437,22 +434,13 @@ export function LyricsEditor({
           </AlertDescription>
         </Alert>
       ) : null}
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="font-display text-xl italic">Make every word land.</p>
-          <p className="text-xs text-muted-foreground">
-            Your timing. Your typography.
-          </p>
-        </div>
-        <Badge variant="secondary">Free</Badge>
-      </div>
       <details
         open={sourceOpen}
         onToggle={(e) => setSourceOpen(e.currentTarget.open)}
         className="lyric-source"
       >
         <summary className="cursor-pointer text-sm font-medium">
-          {track.lines.length ? "Find or replace lyrics" : "Find your lyrics"}
+          {track.lines.length ? "Find or replace lyrics" : "Find lyrics"}
         </summary>
         <FieldGroup className="mt-4 gap-4">
           <Field>
@@ -472,7 +460,7 @@ export function LyricsEditor({
               />
               <Button
                 size="icon"
-                aria-label="Search free lyrics"
+                aria-label="Search lyrics"
                 disabled={busy || !query.trim()}
                 onClick={() => void search()}
               >
@@ -480,7 +468,7 @@ export function LyricsEditor({
               </Button>
             </div>
             <FieldDescription>
-              Free lookup from{" "}
+              Search via{" "}
               <a
                 className="underline"
                 href="https://lrclib.net"
@@ -646,8 +634,8 @@ export function LyricsEditor({
             <p className="text-sm font-medium break-words">{track.source}</p>
             <p className="text-xs text-muted-foreground">
               {estimated
-                ? "Some word timings are estimated. Tap or edit them to dial it in."
-                : "Word start times supplied or edited. Check the word endings by ear."}
+                ? "Estimated word timings. Adjust them in Timing."
+                : "Check word endings against your audio."}
             </p>
           </div>
           <ToggleGroup
@@ -656,8 +644,7 @@ export function LyricsEditor({
             onValueChange={(v) => {
               if (v[0]) setView(v[0]);
             }}
-            className="w-full"
-            variant="outline"
+            className="segmented w-full"
           >
             <ToggleGroupItem value="timing" className="flex-1">
               Timing
@@ -698,7 +685,12 @@ export function LyricsEditor({
                 onChange={(n) => patch({ entrance: n / 1000 })}
               />
               <div className="grid grid-cols-2 gap-3">
-                {(["color", "accent"] as const).map((key) => (
+                {(
+                  [
+                    "color",
+                    ...(track.effect === "karaoke" ? ["accent"] : []),
+                  ] as ("color" | "accent")[]
+                ).map((key) => (
                   <Field key={key}>
                     <FieldLabel htmlFor={`lyric-${key}`}>
                       {key === "color" ? "Text color" : "Karaoke accent"}
@@ -743,11 +735,6 @@ export function LyricsEditor({
               >
                 Soft backing behind words
               </Toggle>
-              <FieldDescription>
-                Fade, Float, Pop, and Stamp build the whole phrase. Solo holds
-                each word until its end time. Karaoke uses both boundaries for
-                the color sweep.
-              </FieldDescription>
             </>
           ) : (
             <>
@@ -1186,8 +1173,8 @@ export function LyricsEditor({
             </>
           )}
           <p className="text-xs text-muted-foreground">
-            Save your lyric edits with the download icon to keep them after
-            closing this page. Audio and photos aren't included.
+            Download lyric edits to keep them after closing this page. Audio and
+            photos aren't included.
           </p>
           <Button
             variant="ghost"

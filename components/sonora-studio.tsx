@@ -26,13 +26,7 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AudioTimeline,
   type AudioTransport,
@@ -55,13 +49,13 @@ import {
 import { Amount, Choice, TimeField } from "@/components/studio-fields";
 import { StudioPreview } from "@/components/studio-preview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
@@ -110,7 +104,6 @@ import {
   MODES,
   MOTIONS,
   PAPER_COLORS,
-  PLACEMENTS,
   REACTIONS,
   SPANS,
   TEASER_FORMATS,
@@ -467,25 +460,12 @@ export function SonoraStudio() {
             );
           })}
         </ToggleGroup>
-        <Badge
-          variant="outline"
-          className="studio-privacy h-7 rounded-full px-3"
-        >
-          <LockKeyholeIcon data-icon="inline-start" /> On your device
-        </Badge>
+        <span className="studio-privacy">
+          <LockKeyholeIcon className="size-3.5" aria-hidden="true" />
+          Stays on your device
+        </span>
       </header>
-      {photos.length ? (
-        <h1 className="sr-only">Sonora studio</h1>
-      ) : (
-        <div className="studio-topbar">
-          <h1 className="studio-title">
-            Make something <em className="hot-text">worth sharing.</em>
-          </h1>
-          <p className="studio-subtitle">
-            One collection. Posts, carousels, and stories.
-          </p>
-        </div>
-      )}
+      <h1 className="sr-only">Sonora studio</h1>
       <div className="studio-workspace">
         <section
           className="studio-panel studio-workbench"
@@ -509,14 +489,6 @@ export function SonoraStudio() {
         >
           <div
             className={cn("studio-preview-area", dragging && "studio-dragging")}
-            style={
-              photo
-                ? ({
-                    "--glow-a": photo.colors[1],
-                    "--glow-b": photo.colors[2],
-                  } as CSSProperties)
-                : undefined
-            }
           >
             <div className="studio-preview-toolbar">
               <ToggleGroup
@@ -583,29 +555,13 @@ export function SonoraStudio() {
               />
             ) : (
               <Empty className="studio-empty">
-                <div className="studio-empty-art" aria-hidden="true">
-                  <div className="sample-print sample-print-back">
-                    <div />
-                  </div>
-                  <div className="sample-print sample-print-mid">
-                    <div />
-                  </div>
-                  <div className="sample-print sample-print-front">
-                    <div>
-                      <span />
-                    </div>
-                  </div>
-                  <span className="sample-star">✳</span>
-                </div>
                 <EmptyHeader>
-                  <EmptyTitle>
-                    Your camera roll has{" "}
-                    <em className="hot-text">potential.</em>
-                  </EmptyTitle>
+                  <EmptyMedia variant="icon">
+                    <ImagePlusIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Start with your photos</EmptyTitle>
                   <EmptyDescription>
-                    Drop in a few photos. Find a layout you love.
-                    <br />
-                    Make the whole thing feel like you.
+                    Drop photos here to make a post, carousel, or story.
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
@@ -618,77 +574,75 @@ export function SonoraStudio() {
                     <PlusIcon data-icon="inline-start" />
                     {loading ? "Opening photos…" : "Choose photos"}
                   </Button>
-                  <span className="studio-spec">
-                    HEIC · JPEG · PNG · WebP — never leaves your device
-                  </span>
+                  <span className="studio-spec">HEIC · JPEG · PNG · WebP</span>
                 </EmptyContent>
               </Empty>
             )}
             {dragging ? (
               <div className="studio-drop-overlay">
-                <span className="hot-text">Drop your photos here</span>
+                <span>Drop photos here</span>
               </div>
             ) : null}
           </div>
-          <div className="studio-canvas-footer">
-            <span className="studio-spec">
-              <b>
-                {size.width} × {size.height}
-              </b>
-              {project.mode === "story" && variant !== "cover"
-                ? " · 60 FPS · H.264"
-                : " · PNG"}
-            </span>
-            {photos.length > 0 &&
-            project.mode !== "story" &&
-            variant === "main" ? (
-              <div className="flex items-center gap-2">
+          {photos.length > 0 ? (
+            <div className="studio-canvas-footer">
+              <span className="studio-spec">
+                <b>
+                  {size.width} × {size.height}
+                </b>
+                {project.mode === "story" && variant !== "cover"
+                  ? " · 60 FPS · H.264"
+                  : " · PNG"}
+              </span>
+              {pages > 1 && project.mode !== "story" && variant === "main" ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Previous slide"
+                    disabled={page <= 0 || working}
+                    onClick={() => setPage(Math.max(0, Math.ceil(page) - 1))}
+                  >
+                    <ChevronLeftIcon />
+                  </Button>
+                  <span className="text-xs tabular-nums">
+                    {Math.round(page) + 1} / {pages}
+                  </span>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Next slide"
+                    disabled={page >= pages - 1 || working}
+                    onClick={() =>
+                      setPage(Math.min(pages - 1, Math.floor(page) + 1))
+                    }
+                  >
+                    <ChevronRightIcon />
+                  </Button>
+                </div>
+              ) : null}
+              {photos.length > 0 &&
+              (project.mode === "story" || variant === "teaser") ? (
                 <Button
-                  size="icon-sm"
+                  size="sm"
                   variant="ghost"
-                  aria-label="Previous slide"
-                  disabled={page <= 0 || working}
-                  onClick={() => setPage(Math.max(0, Math.ceil(page) - 1))}
-                >
-                  <ChevronLeftIcon />
-                </Button>
-                <span className="text-xs tabular-nums">
-                  {Math.round(page) + 1} / {pages}
-                </span>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Next slide"
-                  disabled={page >= pages - 1 || working}
+                  disabled={working}
                   onClick={() =>
-                    setPage(Math.min(pages - 1, Math.floor(page) + 1))
+                    audio
+                      ? void audioTransport.current?.toggle()
+                      : setAnimate((v) => !v)
                   }
                 >
-                  <ChevronRightIcon />
+                  {animate || playing ? (
+                    <PauseIcon data-icon="inline-start" />
+                  ) : (
+                    <PlayIcon data-icon="inline-start" />
+                  )}
+                  {animate || playing ? "Pause" : "Play preview"}
                 </Button>
-              </div>
-            ) : null}
-            {photos.length > 0 &&
-            (project.mode === "story" || variant === "teaser") ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={working}
-                onClick={() =>
-                  audio
-                    ? void audioTransport.current?.toggle()
-                    : setAnimate((v) => !v)
-                }
-              >
-                {animate || playing ? (
-                  <PauseIcon data-icon="inline-start" />
-                ) : (
-                  <PlayIcon data-icon="inline-start" />
-                )}
-                {audio ? "Preview with audio" : "Preview motion"}
-              </Button>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
           {project.connected &&
           project.mode === "carousel" &&
           photos.length > 0 &&
@@ -722,136 +676,116 @@ export function SonoraStudio() {
               export.
             </p>
           ) : null}
-          <div className="studio-collection">
-            <div className="flex items-center justify-between gap-3">
-              <span className="studio-section-label">
-                Your collection <span>{photos.length}</span>
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => photoInput.current?.click()}
-                disabled={working || loading}
-              >
-                {loading ? (
-                  <Spinner data-icon="inline-start" />
-                ) : (
-                  <PlusIcon data-icon="inline-start" />
-                )}
-                Add photos
-              </Button>
-            </div>
-            <div className="photo-strip">
-              {photos.map((p, i) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  className={cn(
-                    "photo-thumbnail",
-                    photo?.id === p.id && "photo-thumbnail-selected",
-                  )}
-                  aria-label={`Select photo ${i + 1}: ${p.name}`}
-                  aria-pressed={photo?.id === p.id}
-                  disabled={working}
-                  draggable={!working}
-                  onDragStart={() => {
-                    dragPhoto.current = p.id;
-                  }}
-                  onDragOver={(e) => {
-                    if (dragPhoto.current) e.preventDefault();
-                  }}
-                  onDrop={(e) => {
-                    if (dragPhoto.current) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      reorder(dragPhoto.current, i);
-                      dragPhoto.current = null;
-                    }
-                  }}
-                  onDragEnd={() => {
-                    dragPhoto.current = null;
-                  }}
-                  onClick={() => {
-                    choosePhoto(p.id);
-                    if (project.mode !== "story")
-                      setPage(
-                        project.connected && project.mode === "carousel"
-                          ? photos
-                              .slice(0, i)
-                              .reduce((sum, item) => sum + item.span, 0)
-                          : Math.floor(i / capacity(project.layout)),
-                      );
-                  }}
-                >
-                  {/* biome-ignore lint/performance/noImgElement: User-owned blob URLs never go through a server image optimizer. */}
-                  <img src={p.objectUrl} alt={p.name} draggable={false} />
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                </button>
-              ))}
-              {photos.length ? (
-                <button
-                  type="button"
-                  className="photo-add-tile"
-                  aria-label="Add more photos"
-                  disabled={working || loading}
-                  onClick={() => photoInput.current?.click()}
-                >
-                  {loading ? <Spinner /> : <PlusIcon className="size-5" />}
-                  Add
-                </button>
-              ) : (
-                <p className="self-center text-xs text-muted-foreground">
-                  Your photos will appear here, in posting order.
-                </p>
-              )}
-            </div>
-            {photo ? (
-              <div className="flex items-center gap-1">
-                <span className="mr-auto truncate text-xs text-muted-foreground">
-                  {photo.name}
+          {photos.length > 0 ? (
+            <div className="studio-collection">
+              <div className="flex items-center justify-between gap-3">
+                <span className="studio-section-label">
+                  Photos <span>{photos.length}</span>
                 </span>
                 <Button
-                  size="icon-sm"
                   variant="ghost"
-                  aria-label="Move photo earlier"
-                  disabled={working || photos.indexOf(photo) === 0}
-                  onClick={() => reorder(photo.id, photos.indexOf(photo) - 1)}
+                  size="sm"
+                  onClick={() => photoInput.current?.click()}
+                  disabled={working || loading}
                 >
-                  <ArrowLeftIcon />
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Move photo later"
-                  disabled={
-                    working || photos.indexOf(photo) === photos.length - 1
-                  }
-                  onClick={() => reorder(photo.id, photos.indexOf(photo) + 1)}
-                >
-                  <ArrowRightIcon />
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label="Remove selected photo"
-                  disabled={working}
-                  onClick={() => removePhoto(photo.id)}
-                >
-                  <Trash2Icon />
+                  {loading ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <PlusIcon data-icon="inline-start" />
+                  )}
+                  Add photos
                 </Button>
               </div>
-            ) : null}
-            {photos.length > 1 ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Layouts fill up with photos in this order. Drag a thumbnail or
-                use the arrows to reorder.
-              </p>
-            ) : null}
-          </div>
+              <div className="photo-strip">
+                {photos.map((p, i) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    className={cn(
+                      "photo-thumbnail",
+                      photo?.id === p.id && "photo-thumbnail-selected",
+                    )}
+                    aria-label={`Select photo ${i + 1}: ${p.name}`}
+                    aria-pressed={photo?.id === p.id}
+                    disabled={working}
+                    draggable={!working}
+                    onDragStart={() => {
+                      dragPhoto.current = p.id;
+                    }}
+                    onDragOver={(e) => {
+                      if (dragPhoto.current) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      if (dragPhoto.current) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        reorder(dragPhoto.current, i);
+                        dragPhoto.current = null;
+                      }
+                    }}
+                    onDragEnd={() => {
+                      dragPhoto.current = null;
+                    }}
+                    onClick={() => {
+                      choosePhoto(p.id);
+                      if (project.mode !== "story")
+                        setPage(
+                          project.connected && project.mode === "carousel"
+                            ? photos
+                                .slice(0, i)
+                                .reduce((sum, item) => sum + item.span, 0)
+                            : Math.floor(i / capacity(project.layout)),
+                        );
+                    }}
+                  >
+                    {/* biome-ignore lint/performance/noImgElement: User-owned blob URLs never go through a server image optimizer. */}
+                    <img src={p.objectUrl} alt={p.name} draggable={false} />
+                    <span>{String(i + 1).padStart(2, "0")}</span>
+                  </button>
+                ))}
+              </div>
+              {photo ? (
+                <div className="flex items-center gap-1">
+                  <span className="mr-auto truncate text-xs text-muted-foreground">
+                    {photo.name}
+                  </span>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Move photo earlier"
+                    disabled={working || photos.indexOf(photo) === 0}
+                    onClick={() => reorder(photo.id, photos.indexOf(photo) - 1)}
+                  >
+                    <ArrowLeftIcon />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Move photo later"
+                    disabled={
+                      working || photos.indexOf(photo) === photos.length - 1
+                    }
+                    onClick={() => reorder(photo.id, photos.indexOf(photo) + 1)}
+                  >
+                    <ArrowRightIcon />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Remove selected photo"
+                    disabled={working}
+                    onClick={() => removePhoto(photo.id)}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {project.mode === "story" && photos.length > 0 ? (
             <div className="studio-timeline">
               <div className="flex items-center justify-between gap-3">
-                <span className="studio-section-label">Story timeline</span>
+                <span className="studio-section-label">Scenes</span>
                 <span className="studio-value">
                   {formatTime(time)} / {formatTime(duration)}
                 </span>
@@ -869,35 +803,33 @@ export function SonoraStudio() {
                   }
                 }}
               />
-              <div className="flex gap-1">
-                {Array.from({ length: scenes }, (_, i) => (
-                  <button
-                    type="button"
-                    key={photos[i * capacity(project.layout)]?.id ?? i}
-                    className={cn(
-                      "timeline-scene",
-                      activeScene.scene === i && "timeline-scene-active",
-                    )}
-                    style={{ flex: cuts[i + 1] - cuts[i] }}
-                    disabled={working || playing}
-                    onClick={() => {
-                      seekAudio(
-                        (audio ? selection[0] : 0) + cuts[i] * duration,
-                      );
-                    }}
-                    aria-label={`Preview scene ${i + 1}`}
-                  >
-                    <span>{i + 1}</span>
-                    <span className="hidden sm:inline">
-                      {((cuts[i + 1] - cuts[i]) * duration).toFixed(1)}s
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Each block is a scene: the photos on screen together. Tap one to
-                jump there, or set exact times under Sound & motion.
-              </p>
+              {scenes > 1 ? (
+                <div className="flex gap-1">
+                  {Array.from({ length: scenes }, (_, i) => (
+                    <button
+                      type="button"
+                      key={photos[i * capacity(project.layout)]?.id ?? i}
+                      className={cn(
+                        "timeline-scene",
+                        activeScene.scene === i && "timeline-scene-active",
+                      )}
+                      style={{ flex: cuts[i + 1] - cuts[i] }}
+                      disabled={working || playing}
+                      onClick={() => {
+                        seekAudio(
+                          (audio ? selection[0] : 0) + cuts[i] * duration,
+                        );
+                      }}
+                      aria-label={`Preview scene ${i + 1}`}
+                    >
+                      <span>{i + 1}</span>
+                      <span className="hidden sm:inline">
+                        {((cuts[i + 1] - cuts[i]) * duration).toFixed(1)}s
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -933,7 +865,7 @@ export function SonoraStudio() {
                   <FieldGroup>
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-medium">
-                        {audio?.name ?? "Your soundtrack"}
+                        {audio?.name ?? "Audio"}
                       </span>
                       <Button
                         size="sm"
@@ -961,14 +893,13 @@ export function SonoraStudio() {
                     </div>
                     {!audio ? (
                       <FieldDescription className="-mt-3">
-                        Pick a song or sound from your device. The story plays
-                        the part you select, and it never leaves your device.
+                        Add a local audio file, then select the part to use.
                       </FieldDescription>
                     ) : null}
                     {audioLoading ? (
                       <p className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Spinner />
-                        Listening for rhythm…
+                        Analyzing audio…
                       </p>
                     ) : null}
                     {audio && audioUrl ? (
@@ -995,7 +926,7 @@ export function SonoraStudio() {
                     ) : (
                       <TimeField
                         label="Story duration"
-                        hint="How long the video runs. Type seconds (12) or minutes:seconds (1:05.5)."
+                        hint="Seconds or minutes:seconds, including decimals."
                         value={project.duration}
                         onChange={(n) => {
                           if (n > 0) change({ duration: n });
@@ -1134,7 +1065,6 @@ export function SonoraStudio() {
                     {project.treatment !== "clean" ? (
                       <Amount
                         label="Spacing"
-                        hint="Space between photos and around the edges of the frame."
                         value={project.gap}
                         max={120}
                         suffix=" px"
@@ -1195,28 +1125,24 @@ export function SonoraStudio() {
                       <FieldLabel htmlFor="studio-title">Title</FieldLabel>
                       <Input
                         id="studio-title"
-                        placeholder="A weekend worth keeping"
+                        placeholder="Add a title"
                         value={project.title}
                         onChange={(e) => change({ title: e.target.value })}
                       />
                       <FieldDescription>
-                        Big text on every slide. Adding text shrinks the photos
-                        a little to make room for it.
+                        Appears on every slide. Photos resize to make room.
                       </FieldDescription>
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="studio-subtitle">
-                        Small print
+                        Subtitle
                       </FieldLabel>
                       <Input
                         id="studio-subtitle"
-                        placeholder="Somewhere good, with good people."
+                        placeholder="Add a subtitle"
                         value={project.subtitle}
                         onChange={(e) => change({ subtitle: e.target.value })}
                       />
-                      <FieldDescription>
-                        A smaller line under the title, like a date or a place.
-                      </FieldDescription>
                     </Field>
                     {project.title || project.subtitle ? (
                       <>
@@ -1229,7 +1155,7 @@ export function SonoraStudio() {
                         />
                         <Amount
                           label="Title size"
-                          hint="Small print scales along with the title."
+                          hint="Subtitle scales with the title."
                           value={project.titleSize}
                           min={24}
                           max={160}
@@ -1305,10 +1231,6 @@ export function SonoraStudio() {
                           Reset framing
                         </Button>
                       </div>
-                      <FieldDescription className="-mt-3">
-                        Framing changes this photo only. Tap another thumbnail
-                        in your collection to edit it.
-                      </FieldDescription>
                       <Choice
                         label="Framing"
                         value={photo.fit}
@@ -1347,22 +1269,6 @@ export function SonoraStudio() {
                         min={-100}
                         onChange={(n) => movePhoto(photo.id, { y: n / 100 })}
                       />
-                      <Choice
-                        label="Placement"
-                        value={
-                          photo.y < -0.5
-                            ? "upper"
-                            : photo.y > 0.5
-                              ? "lower"
-                              : "center"
-                        }
-                        options={PLACEMENTS}
-                        onChange={(v) =>
-                          movePhoto(photo.id, {
-                            y: v === "upper" ? -1 : v === "lower" ? 1 : 0,
-                          })
-                        }
-                      />
                       <Field>
                         <Button
                           variant="outline"
@@ -1380,10 +1286,6 @@ export function SonoraStudio() {
                         >
                           Apply framing to all photos
                         </Button>
-                        <FieldDescription>
-                          Copies this photo's Fit or Fill, size, and position to
-                          every photo.
-                        </FieldDescription>
                       </Field>
                       {project.connected && project.mode === "carousel" ? (
                         <>
@@ -1434,9 +1336,7 @@ export function SonoraStudio() {
                           Atmospheric backdrop
                         </Toggle>
                         <FieldDescription>
-                          Fills the space behind your photos with artwork made
-                          from them, instead of a flat color. Applies to every
-                          slide.
+                          Uses your photos to create a backdrop on every slide.
                         </FieldDescription>
                       </Field>
                       {project.atmospheric ? (
@@ -1454,9 +1354,9 @@ export function SonoraStudio() {
                   ) : (
                     <Empty>
                       <EmptyHeader>
-                        <EmptyTitle>No photo selected yet.</EmptyTitle>
+                        <EmptyTitle>No photos yet</EmptyTitle>
                         <EmptyDescription>
-                          Add your photos to start framing.
+                          Add photos to adjust their framing.
                         </EmptyDescription>
                       </EmptyHeader>
                     </Empty>
@@ -1466,7 +1366,7 @@ export function SonoraStudio() {
                   <FieldGroup>
                     {project.mode !== "story" ? (
                       <Alert>
-                        <AlertTitle>Give it some movement.</AlertTitle>
+                        <AlertTitle>Story settings</AlertTitle>
                         <AlertDescription>
                           Sound and motion apply to Story videos and animated
                           teasers in your matching set.
@@ -1506,8 +1406,7 @@ export function SonoraStudio() {
                         Reveal collage photos in sequence
                       </Toggle>
                       <FieldDescription>
-                        In layouts with several photos, each one fades up into
-                        place after the last instead of all at once.
+                        Photos enter one at a time in collage layouts.
                       </FieldDescription>
                     </Field>
                     <Choice
@@ -1516,13 +1415,12 @@ export function SonoraStudio() {
                       options={MOTIONS}
                       art={(motion) => <MotionArt motion={motion} />}
                       columns={4}
-                      hint="Moves Fill photos and the Photo blur backdrop. Fit photos stay put so no edge gets cropped, and other backdrops have their own animation."
+                      hint="Moves Fill photos and Photo blur. Fit photos stay still; other backdrops animate independently."
                       onChange={(motion) => change({ motion })}
                     />
                     {project.motion !== "none" ? (
                       <Amount
                         label="Motion intensity"
-                        hint="How far the camera moves."
                         value={project.motionStrength}
                         suffix="%"
                         onChange={(motionStrength) =>
@@ -1661,10 +1559,6 @@ export function SonoraStudio() {
             </fieldset>
           </div>
           <div className="studio-export">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-display text-xl italic">Ready when you are.</p>
-              <Badge variant="secondary">No watermark</Badge>
-            </div>
             <Button
               size="lg"
               className="studio-export-cta"
@@ -1688,13 +1582,12 @@ export function SonoraStudio() {
             </Button>
             <details className="matching-set">
               <summary>
-                Make a matching set <ChevronDownIcon className="size-4" />
+                Matching set <ChevronDownIcon className="size-4" />
               </summary>
               <div className="flex flex-col gap-3">
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  All your slides, a cover, and a story teaser in one ZIP, so
-                  your feed post and story match. Use Composition, Story teaser,
-                  and Cover above the preview to adjust each version.
+                  Slides, cover, and story teaser in one ZIP. Adjust each
+                  version above the preview.
                 </p>
                 <Choice
                   label="Story teaser"
@@ -1739,7 +1632,7 @@ export function SonoraStudio() {
             {result ? (
               <Alert className="studio-result">
                 <CheckIcon />
-                <AlertTitle>Your export is ready.</AlertTitle>
+                <AlertTitle>Export ready</AlertTitle>
                 <AlertDescription>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
@@ -1788,12 +1681,6 @@ export function SonoraStudio() {
           </div>
         </aside>
       </div>
-      <footer className="studio-footer">
-        <span>
-          <em>Made for the moments</em> between the big moments.
-        </span>
-        <span>No accounts. No uploads. Just your browser.</span>
-      </footer>
     </main>
   );
 }

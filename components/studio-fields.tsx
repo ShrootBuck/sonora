@@ -5,6 +5,11 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatTime, parseTime } from "@/lib/media/time";
 import type { StudioOption } from "@/lib/studio/options";
 import { cn } from "@/lib/utils";
@@ -15,29 +20,6 @@ const COLUMNS: Record<number, string> = {
   4: "grid-cols-4",
   5: "grid-cols-5",
 };
-
-/** One explanation line that previews the hovered or focused choice and
- * otherwise describes the current one, so people can learn without clicking. */
-export function OptionNote<T extends string>({
-  id,
-  options,
-  value,
-}: {
-  id: string;
-  options: readonly StudioOption<T>[];
-  value: T;
-}) {
-  const option = options.find((o) => o.value === value);
-  if (!option) return null;
-  return (
-    <FieldDescription id={id} className="studio-option-note">
-      <span className="font-medium text-foreground">
-        {option.title ?? option.label}.
-      </span>{" "}
-      {option.description}
-    </FieldDescription>
-  );
-}
 
 export function Choice<T extends string>({
   label,
@@ -57,19 +39,15 @@ export function Choice<T extends string>({
   art?: (value: T) => ReactNode;
   columns?: number;
 }) {
-  const id = useId();
-  const [preview, setPreview] = useState<T | null>(null);
   return (
     <Field>
       <FieldLabel>{label}</FieldLabel>
       <ToggleGroup
         aria-label={label}
-        aria-describedby={`${id}-note`}
         value={[value]}
         onValueChange={(v) => {
           if (v[0]) onChange(v[0] as T);
         }}
-        onPointerLeave={() => setPreview(null)}
         variant="outline"
         spacing={1}
         className={cn(
@@ -86,33 +64,31 @@ export function Choice<T extends string>({
         )}
       >
         {options.map((o) => (
-          <ToggleGroupItem
-            key={o.value}
-            value={o.value}
-            className={cn(
-              "flex-1",
-              art && "studio-option h-auto min-w-0 flex-col gap-1.5 px-1 py-2",
-            )}
-            onPointerEnter={() => setPreview(o.value)}
-            onFocus={() => setPreview(o.value)}
-            onBlur={() => setPreview(null)}
-          >
-            {art ? (
-              <>
-                <span className="studio-art-box">{art(o.value)}</span>
-                <span className="studio-option-label">{o.label}</span>
-              </>
-            ) : (
-              o.label
-            )}
-          </ToggleGroupItem>
+          <Tooltip key={o.value}>
+            <ToggleGroupItem
+              render={<TooltipTrigger delay={500} />}
+              value={o.value}
+              className={cn(
+                "flex-1",
+                art &&
+                  "studio-option h-auto min-w-0 flex-col gap-1.5 px-1 py-2",
+              )}
+            >
+              {art ? (
+                <>
+                  <span className="studio-art-box">{art(o.value)}</span>
+                  <span className="studio-option-label">{o.label}</span>
+                </>
+              ) : (
+                o.label
+              )}
+            </ToggleGroupItem>
+            <TooltipContent side="top" className="max-w-64">
+              {o.description}
+            </TooltipContent>
+          </Tooltip>
         ))}
       </ToggleGroup>
-      <OptionNote
-        id={`${id}-note`}
-        options={options}
-        value={preview ?? value}
-      />
       {hint ? <FieldDescription>{hint}</FieldDescription> : null}
     </Field>
   );

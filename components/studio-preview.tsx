@@ -115,7 +115,7 @@ export function StudioPreview(props: Props) {
       <div
         className="studio-preview-frame relative w-full overflow-hidden rounded-[3px] bg-story-canvas"
         style={{
-          maxWidth: `min(540px, calc(56svh * ${size.width / size.height}))`,
+          maxWidth: `min(540px, calc(var(--studio-preview-height, 50svh) * ${size.width / size.height}))`,
           aspectRatio: `${size.width} / ${size.height}`,
         }}
       >

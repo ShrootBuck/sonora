@@ -330,8 +330,7 @@ export function AudioTimeline({
         <div className="flex flex-col gap-1">
           <FieldLabel htmlFor="audio-range">Audio selection</FieldLabel>
           <FieldDescription>
-            Drag the handles to choose which part of the song plays. Your story
-            runs exactly this long.
+            This range sets the story's duration.
           </FieldDescription>
         </div>
         <span className="studio-value shrink-0 tabular-nums">
@@ -381,16 +380,14 @@ export function AudioTimeline({
                     )}
                     style={{
                       height: `${Math.max(10, height * 92)}%`,
-                      backgroundColor: selected
-                        ? `color-mix(in oklab, var(--hot-1), var(--hot-3) ${percent}%)`
-                        : undefined,
+                      backgroundColor: selected ? "var(--primary)" : undefined,
                     }}
                   />
                 );
               })}
             </div>
             <div
-              className="pointer-events-none absolute inset-y-0 w-0.5 rounded-full bg-foreground shadow-[0_0_10px_var(--foreground)]"
+              className="pointer-events-none absolute inset-y-0 w-0.5 rounded-full bg-foreground"
               style={{ left: `${playheadPercent}%` }}
             />
             {waveformUnavailable ? (

@@ -30,7 +30,7 @@ export function createLyricRenderer(
   const fontFamily =
     TYPEFACES.find((f) => f.value === track.font)?.font ?? "Arial";
   let key = "";
-  let nodes: { line: LyricLine; group: Konva.Group; words: WordNode[] }[] = [];
+  let nodes: ReturnType<typeof build>[] = [];
 
   function build(line: LyricLine, words: LyricWord[]) {
     const fontSize =
@@ -71,9 +71,8 @@ export function createLyricRenderer(
     const boxHeight = rows.length * rowHeight;
     const group = new Konva.Group();
     root.add(group);
-    if (track.backdrop)
-      group.add(
-        new Konva.Rect({
+    const backing = track.backdrop
+      ? new Konva.Rect({
           x: -boxWidth / 2 - 24,
           y: -14,
           width: boxWidth + 48,
@@ -81,8 +80,9 @@ export function createLyricRenderer(
           fill: "#101014",
           opacity: 0.72,
           cornerRadius: 22,
-        }),
-      );
+        })
+      : undefined;
+    if (backing) group.add(backing);
     const wordNodes: WordNode[] = [];
     rows.forEach((row, rowIndex) => {
       const lineWidth = row.reduce(
@@ -149,6 +149,7 @@ export function createLyricRenderer(
       line,
       group,
       words: wordNodes,
+      backing,
       height: boxHeight * fit,
       width: boxWidth * fit,
     };
@@ -209,6 +210,7 @@ export function createLyricRenderer(
       root.moveToTop();
       for (const entry of nodes) {
         entry.group.opacity(Math.min(1, (entry.line.end - sourceTime) / 0.08));
+        let visibleOpacity = 0;
         for (const node of entry.words) {
           const pose = lyricEntrance(
             track.effect,
@@ -216,6 +218,7 @@ export function createLyricRenderer(
             track.entrance,
           );
           node.group.opacity(track.effect === "karaoke" ? 1 : pose.opacity);
+          visibleOpacity = Math.max(visibleOpacity, node.group.opacity());
           node.group.position({ x: node.x, y: node.y + pose.y * track.size });
           node.group.scale({ x: pose.scale, y: pose.scale });
           node.group.rotation(pose.rotation);
@@ -231,6 +234,9 @@ export function createLyricRenderer(
               ),
           );
         }
+        // The backing follows the words instead of flashing an empty plate
+        // at the phrase boundary or while waiting for its first word.
+        entry.backing?.opacity(0.72 * visibleOpacity);
       }
     },
   };
